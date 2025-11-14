@@ -130,18 +130,65 @@ class GeminiClient {
 
   /**
    * 生成图像（使用 gemini-2.5-flash-image-preview）
+   * @param {string} prompt - 图像生成提示词
+   * @param {string} outputPath - 输出路径
+   * @param {object} options - 选项
+   * @param {string|string[]} options.referenceImage - 参考图片路径（可选）
    */
   async generateImage(prompt, outputPath, options = {}) {
     try {
       const modelName = options.model || 'gemini-2.5-flash-image-preview';
+      const referenceImage = options.referenceImage;
       
       console.log(`   🎨 使用 ${modelName} 生成图像...`);
+      if (referenceImage) {
+        console.log(`   📸 使用参考图片: ${typeof referenceImage === 'string' ? path.basename(referenceImage) : referenceImage.length + ' 张'}`);
+      }
+      
+      // 构建 contents，如果提供了参考图片，将其作为多模态输入的一部分
+      let contents = prompt;
+      
+      if (referenceImage) {
+        // 如果提供了参考图片，构建多模态内容
+        const imagePaths = Array.isArray(referenceImage) ? referenceImage : [referenceImage];
+        const imageParts = [];
+        
+        // 读取参考图片并转换为 base64
+        for (const imgPath of imagePaths) {
+          if (fs.existsSync(imgPath)) {
+            const imageData = fs.readFileSync(imgPath);
+            const ext = path.extname(imgPath).toLowerCase();
+            const mimeTypes = {
+              '.png': 'image/png',
+              '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg',
+              '.webp': 'image/webp',
+            };
+            const mimeType = mimeTypes[ext] || 'image/jpeg';
+            
+            imageParts.push({
+              inlineData: {
+                data: imageData.toString('base64'),
+                mimeType: mimeType,
+              },
+            });
+          }
+        }
+        
+        // 如果有参考图片，构建多模态内容：先图片，后文本提示词
+        if (imageParts.length > 0) {
+          contents = [
+            ...imageParts,
+            { text: prompt },
+          ];
+        }
+      }
       
       // 调用 Gemini 图像生成 API
       // 根据 @google/genai 库的格式
       const response = await this.ai.models.generateContent({
         model: modelName,
-        contents: prompt,
+        contents: contents,
       });
       
       // 解析响应，提取图像数据

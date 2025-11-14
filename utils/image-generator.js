@@ -18,6 +18,10 @@ class ImageGenerator {
   /**
    * 生成图像
    * 优先使用 Gemini 图像生成模型
+   * @param {string} prompt - 图像生成提示词
+   * @param {string} outputPath - 输出路径
+   * @param {object} options - 选项
+   * @param {string|string[]} options.referenceImage - 参考图片路径（可选）
    */
   async generateImage(prompt, outputPath, options = {}) {
     const {
@@ -25,6 +29,7 @@ class ImageGenerator {
       height = 1080,
       style = 'cinematic',
       model = 'gemini-2.5-flash-image-preview',
+      referenceImage = null,
     } = options;
 
     // 优先使用 Gemini 图像生成
@@ -32,11 +37,19 @@ class ImageGenerator {
       // 增强提示词，添加分辨率和质量要求
       const enhancedPrompt = this.enhancePrompt(prompt, { width, height, style });
       
-      return await geminiClient.generateImage(enhancedPrompt, outputPath, {
+      // 构建传递给 geminiClient 的选项
+      const geminiOptions = {
         model: model,
         temperature: 0.9,
         maxOutputTokens: 8192,
-      });
+      };
+      
+      // 如果提供了参考图片，添加到选项中
+      if (referenceImage) {
+        geminiOptions.referenceImage = referenceImage;
+      }
+      
+      return await geminiClient.generateImage(enhancedPrompt, outputPath, geminiOptions);
     } catch (error) {
       console.warn(`⚠️  Gemini 图像生成失败: ${error.message}`);
       console.warn('💡 将使用占位符图像作为后备方案');

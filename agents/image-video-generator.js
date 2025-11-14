@@ -123,6 +123,12 @@ class ImageVideoGeneratorAgent {
     const duration = shot.endTime - shot.startTime;
     videoPrompt += `, ${duration} seconds duration`;
     
+    // 添加风格要求
+    videoPrompt += `, style: soft 3D cartoon, pastel colors, smooth movement, very kid-friendly, warm lighting, no text`;
+    
+    // 添加场景氛围要求
+    videoPrompt += `. The scene is bright, soft, colorful, and friendly`;
+    
     // 确保视频连贯性
     videoPrompt += `, cinematic motion, high quality, consistent style and visual continuity`;
     

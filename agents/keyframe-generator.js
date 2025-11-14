@@ -6,7 +6,7 @@ import imageGenerator from '../utils/image-generator.js';
 
 class KeyframeGeneratorAgent {
   /**
-   * 基于分镜脚本生成 AB 关键帧
+   * 基于分镜脚本生成关键帧（每个镜头一张）
    */
   async generate(storyboard) {
     console.log('🎨 Agent 4: 关键帧生成器 - 开始生成...');
@@ -21,41 +21,42 @@ class KeyframeGeneratorAgent {
         fs.mkdirSync(outputDir, { recursive: true });
       }
       
-      // 测试模式：只处理前3个镜头
-      const maxShots = 3;
-      const shotsToProcess = shots.slice(0, maxShots);
+      // 加载参考图片（人物形象）
+      const referenceImagePath = path.join(config.paths.input, '20251112-203804.jpg');
+      if (fs.existsSync(referenceImagePath)) {
+        console.log(`\n📸 使用参考图片: ${path.basename(referenceImagePath)}`);
+        console.log(`   所有关键帧中的人物形象将基于此图片生成\n`);
+      } else {
+        console.warn(`\n⚠️  参考图片不存在: ${referenceImagePath}`);
+        console.warn(`   将不使用参考图片生成人物形象\n`);
+      }
+      
       const totalShots = shots.length;
       
-      console.log(`\n📸 为 ${shotsToProcess.length} 个镜头生成 AB 关键帧（测试模式：仅处理前${maxShots}个，共${totalShots}个镜头）...`);
-      console.log(`   每个镜头将生成关键帧 A（起始）和关键帧 B（结束）\n`);
+      console.log(`\n📸 为 ${totalShots} 个镜头生成关键帧...`);
+      console.log(`   每个镜头将生成一张关键帧\n`);
       
-      for (let i = 0; i < shotsToProcess.length; i++) {
-        const shot = shotsToProcess[i];
-        const nextShot = i < shotsToProcess.length - 1 ? shotsToProcess[i + 1] : null;
+      for (let i = 0; i < shots.length; i++) {
+        const shot = shots[i];
+        const nextShot = i < shots.length - 1 ? shots[i + 1] : null;
+        const previousShot = i > 0 ? shots[i - 1] : null;
         
         console.log(`\n  📸 镜头 ${shot.shotNumber}/${totalShots}: ${shot.timeRange}秒`);
         
-        // 生成关键帧 A（镜头起始帧）
-        const promptA = this.buildKeyframeAPrompt(shot, storyboard, i);
-        console.log(`    📝 关键帧 A 提示词:`);
-        console.log(`       ${promptA}`);
-        const keyframeA = await this.generateKeyframeA(shot, storyboard, i);
-        console.log(`    ✅ 关键帧 A 生成完成: ${keyframeA.url}`);
-        
-        // 生成关键帧 B（镜头结束帧，始终是当前镜头的结束状态）
-        const promptB = this.buildKeyframeBPrompt(shot, nextShot, storyboard, i);
-        console.log(`    📝 关键帧 B 提示词:`);
-        console.log(`       ${promptB}`);
-        const keyframeB = await this.generateKeyframeB(shot, nextShot, storyboard, i);
-        console.log(`    ✅ 关键帧 B 生成完成: ${keyframeB.url}`);
+        // 生成关键帧
+        const prompt = this.buildKeyframePrompt(shot, storyboard, i, previousShot, nextShot);
+        console.log(`    📝 关键帧提示词:`);
+        console.log(`       ${prompt}`);
+        const keyframe = await this.generateKeyframe(shot, storyboard, i, previousShot, nextShot);
+        console.log(`    ✅ 关键帧生成完成: ${keyframe.url}`);
         
         keyframes.push({
           shotNumber: shot.shotNumber,
           timeRange: shot.timeRange,
           startTime: shot.startTime,
           endTime: shot.endTime,
-          keyframeA: keyframeA,
-          keyframeB: keyframeB,
+          keyframeA: keyframe, // 保持兼容性，使用 keyframeA 字段
+          keyframeB: keyframe, // 保持兼容性，使用 keyframeB 字段（指向同一个）
           shot: shot, // 保存分镜信息
           nextShot: nextShot, // 保存下一个镜头信息（用于过渡）
         });
@@ -67,7 +68,7 @@ class KeyframeGeneratorAgent {
         timestamp: new Date().toISOString(),
       };
 
-      console.log(`\n✅ AB 关键帧生成完成: ${keyframes.length} 个镜头，共 ${keyframes.length * 2} 个关键帧`);
+      console.log(`\n✅ 关键帧生成完成: ${keyframes.length} 个镜头，共 ${keyframes.length} 个关键帧`);
       return result;
     } catch (error) {
       console.error('❌ 关键帧生成失败:', error);
@@ -76,151 +77,76 @@ class KeyframeGeneratorAgent {
   }
 
   /**
-   * 生成关键帧 A（镜头起始帧）
+   * 生成关键帧（每个镜头一张）
    */
-  async generateKeyframeA(shot, storyboard, index) {
+  async generateKeyframe(shot, storyboard, index, previousShot, nextShot) {
     try {
-      const prompt = this.buildKeyframeAPrompt(shot, storyboard, index);
-      const keyframePath = path.join(config.paths.output, 'keyframes', `shot_${shot.shotNumber}_A.png`);
-      
-      // 提示词已在调用处打印，这里不再重复
+      const prompt = this.buildKeyframePrompt(shot, storyboard, index, previousShot, nextShot);
+      const keyframePath = path.join(config.paths.output, 'keyframes', `shot_${shot.shotNumber}.png`);
       
       // 生成关键帧图像
-      await this.renderKeyframeImage(prompt, keyframePath, shot, 'A');
+      await this.renderKeyframeImage(prompt, keyframePath, shot, null, nextShot);
       
-      const url = `./keyframes/shot_${shot.shotNumber}_A.png`;
+      const url = `./keyframes/shot_${shot.shotNumber}.png`;
       
       return {
         path: keyframePath,
         url: url,
         absolutePath: keyframePath,
         shotNumber: shot.shotNumber,
-        type: 'A',
-        prompt: prompt,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error(`  ❌ 关键帧 A 生成失败:`, error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * 生成关键帧 B（镜头结束帧）
-   * 关键帧 B 始终是当前镜头的结束状态，而不是下一个镜头的起始状态
-   */
-  async generateKeyframeB(shot, nextShot, storyboard, index) {
-    try {
-      // 关键帧 B 始终是当前镜头的结束状态
-      const prompt = this.buildKeyframeBPrompt(shot, nextShot, storyboard, index);
-      const keyframePath = path.join(config.paths.output, 'keyframes', `shot_${shot.shotNumber}_B.png`);
-      
-      // 提示词已在调用处打印，这里不再重复
-      
-      // 生成关键帧图像
-      await this.renderKeyframeImage(prompt, keyframePath, shot, 'B', nextShot);
-      
-      const url = `./keyframes/shot_${shot.shotNumber}_B.png`;
-      
-      return {
-        path: keyframePath,
-        url: url,
-        absolutePath: keyframePath,
-        shotNumber: shot.shotNumber,
-        type: 'B',
         prompt: prompt,
         nextShotNumber: nextShot ? nextShot.shotNumber : null,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error(`  ❌ 关键帧 B 生成失败:`, error.message);
+      console.error(`  ❌ 关键帧生成失败:`, error.message);
       throw error;
     }
   }
 
   /**
-   * 构建关键帧 A 的提示词（镜头起始状态）
+   * 构建关键帧的提示词（合并了A和B的逻辑）
    */
-  buildKeyframeAPrompt(shot, storyboard, index) {
+  buildKeyframePrompt(shot, storyboard, index, previousShot, nextShot) {
     const concept = storyboard?.visualConcept?.visualConcept;
     const style = concept?.style?.name || '';
     const colors = concept?.colorPalette?.primary?.join(', ') || '';
     
-    // 关键帧 A 是镜头的起始状态
-    let prompt = `Keyframe A (start of shot ${shot.shotNumber}): `;
+    // 重要：在提示词开头就强调必须使用参考图片中的卡通形象
+    let prompt = `IMPORTANT: You must use the exact cartoon character from the reference image provided. `;
+    prompt += `Style: soft 3D cartoon, pastel colors, smooth movement, very kid-friendly, warm lighting, no text.”`
+    prompt += `The scene is bright, soft, colorful, and friendly.`
+    prompt += `The character's appearance, design, colors, and style must be identical to the reference image. `;
+    prompt += `Do not create a new character or modify the character design. `;
+    prompt += `Keyframe for shot ${shot.shotNumber}: `;
     prompt += `${shot.composition}, ${shot.framing}, ${shot.lighting}`;
     
+    // 再次强调参考图片
+    prompt += `, use the exact same cartoon character from the reference image, maintain character consistency`;
+    
+    // 添加动作描述
     if (shot.action) {
-      // 提取动作的起始状态
-      prompt += `, ${shot.action} - initial state`;
+      prompt += `, ${shot.action}`;
     }
     
+    // 添加风格
     if (style) {
       prompt += `, ${style} style`;
     }
     
+    // 添加色彩方案
     if (colors) {
       prompt += `, ${colors} color palette`;
     }
     
     // 如果有前一个镜头，添加过渡提示
-    if (index > 0) {
-      prompt += `, visually connected to previous shot, smooth transition`;
+    if (previousShot) {
+      prompt += `, visually connected to previous shot (shot ${previousShot.shotNumber}), smooth transition`;
     }
     
-    prompt += `, cinematic, high quality, detailed, still frame, keyframe`;
-    
-    return prompt;
-  }
-
-  /**
-   * 构建关键帧 B 的提示词（镜头结束状态）
-   * 关键帧 B 始终是当前镜头的结束状态，而不是下一个镜头的起始状态
-   */
-  buildKeyframeBPrompt(shot, nextShot, storyboard, index) {
-    const concept = storyboard?.visualConcept?.visualConcept;
-    const style = concept?.style?.name || '';
-    const colors = concept?.colorPalette?.primary?.join(', ') || '';
-    
-    // 关键帧 B 始终是当前镜头的结束状态
-    let prompt = `Keyframe B (end of shot ${shot.shotNumber}): `;
-    prompt += `${shot.composition}, ${shot.framing}, ${shot.lighting}`;
-    
-    // 描述动作的结束状态
-    if (shot.action) {
-      // 提取动作描述，并强调这是结束状态
-      let actionDescription = shot.action;
-      
-      // 如果有下一个镜头，可以添加一些过渡暗示，但保持当前镜头的特征
-      if (nextShot) {
-        // 添加动作完成的暗示，但不改变当前镜头的基本构图和内容
-        prompt += `, ${actionDescription} - completion state, action reaching its conclusion`;
-        // 可以添加一些视觉过渡的暗示，但保持当前镜头的构图
-        prompt += `, preparing for transition to next scene`;
-      } else {
-        // 最后一个镜头，使用最终状态
-        prompt += `, ${actionDescription} - final state, conclusion`;
-      }
-    } else {
-      // 没有明确动作描述时，使用结束状态
-      if (nextShot) {
-        prompt += `, scene reaching completion, preparing for transition`;
-      } else {
-        prompt += `, final state, conclusion`;
-      }
-    }
-    
-    if (style) {
-      prompt += `, ${style} style`;
-    }
-    
-    if (colors) {
-      prompt += `, ${colors} color palette`;
-    }
-    
-    // 如果有下一个镜头，添加过渡提示，但强调这是当前镜头的结束
+    // 如果有下一个镜头，添加过渡提示
     if (nextShot) {
-      prompt += `, end of shot ${shot.shotNumber}, will transition to shot ${nextShot.shotNumber}`;
+      prompt += `, will transition to next shot (shot ${nextShot.shotNumber})`;
     }
     
     prompt += `, cinematic, high quality, detailed, still frame, keyframe`;
@@ -235,12 +161,25 @@ class KeyframeGeneratorAgent {
     try {
       // 尝试使用图像生成 API 生成真实图像
       try {
-        await imageGenerator.generateImage(prompt, outputPath, {
+        // 检查参考图片是否存在
+        const referenceImagePath = path.join(config.paths.input, '20251112-203804.jpg');
+        const options = {
           width: 1920,
           height: 1080,
           style: 'cinematic',
-        });
-        console.log(`   ✅ 使用图像生成 API 生成关键帧 ${type}`);
+        };
+        
+        // 如果参考图片存在，添加到选项中
+        if (fs.existsSync(referenceImagePath)) {
+          options.referenceImage = referenceImagePath;
+          console.log(`   📸 参考图片路径: ${referenceImagePath}`);
+          console.log(`   📸 参考图片存在: ${fs.existsSync(referenceImagePath)}`);
+        } else {
+          console.warn(`   ⚠️  参考图片不存在: ${referenceImagePath}`);
+        }
+        
+        await imageGenerator.generateImage(prompt, outputPath, options);
+        console.log(`   ✅ 使用图像生成 API 生成关键帧${options.referenceImage ? '（使用参考图片）' : '（未使用参考图片）'}`);
         return outputPath;
       } catch (apiError) {
         // 如果 API 不可用，使用改进的占位符
@@ -289,14 +228,14 @@ class KeyframeGeneratorAgent {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.font = 'bold 40px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(`Keyframe ${type}`, 960, 50);
+      ctx.fillText(`Keyframe Shot ${shot.shotNumber}`, 960, 50);
       
       // 添加时间信息
       ctx.font = '30px Arial';
       ctx.fillText(`${shot.timeRange}秒`, 960, 90);
       
       // 添加边框
-      ctx.strokeStyle = type === 'A' ? '#00ff88' : '#ff8800';
+      ctx.strokeStyle = '#00ff88';
       ctx.lineWidth = 3;
       ctx.strokeRect(20, 20, 1880, 1040);
       
