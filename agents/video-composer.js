@@ -74,21 +74,20 @@ class VideoComposerAgent {
     console.log('🎬 Agent 2: 视频合成器 - 开始合成...');
     
     try {
-      let mediaInputs;
+      let materials;
       
       // 判断是目录路径还是素材数组
       if (typeof materialsOrTempDir === 'string') {
         // 从目录读取
-        const materials = this.loadVideosFromTempDir(materialsOrTempDir, options.storyboard);
-        mediaInputs = materials
-          .filter(m => m.path && fs.existsSync(m.path))
-          .sort((a, b) => a.shotNumber - b.shotNumber);
+        materials = this.loadVideosFromTempDir(materialsOrTempDir, options.storyboard);
       } else {
         // 使用传入的素材数组（保持向后兼容）
-        mediaInputs = materialsOrTempDir
-          .filter(m => m.path && fs.existsSync(m.path))
-          .sort((a, b) => a.shotNumber - b.shotNumber);
+        materials = materialsOrTempDir;
       }
+      
+      const mediaInputs = materials
+        .filter(m => m.path && fs.existsSync(m.path))
+        .sort((a, b) => a.shotNumber - b.shotNumber);
       
       if (mediaInputs.length === 0) {
         throw new Error('没有可用的素材');

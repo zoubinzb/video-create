@@ -162,8 +162,7 @@ async function main() {
     console.log('📋 阶段三：视频合成与输出\n');
     
     // Agent 2: 视频合成器（合并了剪辑、调色、音频混音和渲染）
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const finalOutputPath = path.join(config.paths.output, `music_video_${timestamp}.mp4`);
+    const finalOutputPath = path.join(config.paths.output, `music_video.mp4`);
     const tempDir = config.paths.temp || path.join(process.cwd(), 'temp');
     await videoComposer.compose(
       tempDir, // 直接传递 temp 目录路径

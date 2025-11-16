@@ -123,7 +123,7 @@ class VideoGeneratorAgent {
         material => this._generateVideo(material, keyframeData),
         {
           concurrency: 5,
-          startIndex: 4,
+          startIndex: 0,
           onBatchStart: (batch, batchNum, total) => {
             console.log(`\n📦 批次 ${batchNum}/${total}: 镜头 ${batch[0].shotNumber}-${batch[batch.length - 1].shotNumber}`);
           },
