@@ -1,42 +1,30 @@
 import geminiClient from '../utils/gemini-client.js';
 import audioUtils from '../utils/audio-utils.js';
-import fs from 'fs';
 import path from 'path';
 
+const SHOT_DURATION = 8.0; // 固定每个镜头8秒
+
+/**
+ * Agent 1: 音乐分析与分镜生成器
+ * 分析音乐，生成视觉风格、颜色方案、视觉元素建议、故事板要求等
+ * 返回 JSON 格式，包含音乐分析、视觉概念和故事板
+ * {
+ *   "musicAnalysis": {
+ *     "emotion": {
+ *       "primary": "primary emotion",
+ *       "intensity": intensity score (number),
+ *       "secondary": ["secondary emotion 1", "secondary emotion 2"]
+ *     }
+ *   }
+ * }
+ */
 class MusicStoryboardGeneratorAgent {
-  /**
-   * 合并音乐分析、视觉概念生成和分镜脚本生成
-   * 直接基于音乐生成分镜脚本，识别卡点，视频长度等于音乐长度
-   */
-  async generate(audioPath, lyricsText = null) {
-    console.log('🎬 Agent 1: 音乐分析与分镜生成器 - 开始生成...');
-    
-    try {
-      // 获取音频时长
-      let audioInfo;
-      try {
-        audioInfo = await audioUtils.getAudioInfo(audioPath);
-        console.log(`   📊 音频时长: ${audioInfo.duration.toFixed(2)} 秒`);
-      } catch (error) {
-        console.warn('   ⚠️  无法获取音频信息，使用默认值');
-        audioInfo = { duration: 30 };
-      }
+  // 构建AI提示词
+  _buildPrompt(videoDuration, lyricsText) {
+    const shotsNeeded = Math.ceil(videoDuration / SHOT_DURATION);
+    return `You are a professional music video producer. Please carefully listen to and analyze this music, then generate a complete storyboard directly.
 
-      const videoDuration = audioInfo.duration || 30;
-      
-      // 构建综合提示词：音乐分析 + 视觉概念 + 分镜脚本
-      let prompt = `You are a professional music video producer. Please carefully listen to and analyze this music, then generate a complete storyboard directly.
-
-`;
-
-      if (lyricsText) {
-        prompt += `Lyrics:
-${lyricsText}
-
-`;
-      }
-
-      prompt += `**Task Requirements:**
+${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}**Task Requirements:**
 1. Analyze the music's emotion, rhythm, theme, structure, and climax
 2. Identify beat points in the music (rhythm changes, beat accents, climax, etc.)
 3. Generate visual style and color scheme based on music analysis
@@ -59,10 +47,10 @@ Based on music analysis, generate:
 
 **Storyboard Requirements:**
 1. Total video duration must be exactly ${videoDuration.toFixed(2)} seconds
-2. **Each shot is fixed at 8 seconds** (the last shot may be less than 8 seconds, based on total video duration)
-3. Shot count calculation: ${Math.ceil(videoDuration / 8)} shots are needed
+2. **Each shot is fixed at ${SHOT_DURATION} seconds** (the last shot may be less than ${SHOT_DURATION} seconds, based on total video duration)
+3. Shot count calculation: ${shotsNeeded} shots are needed
 4. Each shot must include:
-   - Timecode (precise to 2 decimal places, each shot fixed at 8 seconds, format: 0.00-8.00, 8.00-16.00, ...)
+   - Timecode (precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00, ...)
    - Framing (wide shot/medium shot/close-up/extreme close-up)
    - Composition description
    - Lighting description (cool tone/warm tone/high contrast, etc.)
@@ -72,11 +60,7 @@ Based on music analysis, generate:
    - Transition type (fade in/fade out/cut/wipe, etc.)
    - Detailed prompt for image/video generation
 5. **Key Requirements**:
-   - Each shot must be strictly fixed at 8 seconds (except the last shot)
-   - Shot 1: 0.00-8.00 seconds
-   - Shot 2: 8.00-16.00 seconds
-   - Shot 3: 16.00-24.00 seconds
-   - ...and so on
+   - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
    - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
    - Visual style and colors must be consistent with music emotion and theme
 
@@ -129,9 +113,9 @@ Please return in JSON format, ensuring correct format:
     "shots": [
       {
         "shotNumber": shot number (number),
-        "timeRange": "0.00-8.00" (each shot fixed at 8 seconds, format: 0.00-8.00, 8.00-16.00, 16.00-24.00...),
-        "startTime": 0.00 (number, precise to 2 decimal places, each shot spaced 8 seconds apart),
-        "endTime": 8.00 (number, precise to 2 decimal places, each shot fixed at 8 seconds, except the last shot),
+        "timeRange": "0.00-${SHOT_DURATION}.00" (each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00...),
+        "startTime": 0.00 (number, precise to 2 decimal places, each shot spaced ${SHOT_DURATION} seconds apart),
+        "endTime": ${SHOT_DURATION}.00 (number, precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, except the last shot),
         "framing": "framing (wide shot/medium shot/close-up/extreme close-up)",
         "composition": "composition description",
         "lighting": "lighting description (cool tone/warm tone/high contrast, etc.)",
@@ -150,123 +134,107 @@ Please return in JSON format, ensuring correct format:
     "notes": "storyboard notes and considerations"
   }
 }`;
+  }
 
-      // 尝试使用 Gemini 直接分析音频文件
+  // 解析JSON结果
+  _parseResult(result) {
+    if (result.raw) {
+      try {
+        return typeof result.raw === 'string' ? JSON.parse(result.raw) : result.raw;
+      } catch (e) {
+        const jsonMatch = result.raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) return JSON.parse(jsonMatch[0]);
+        throw new Error('无法解析 JSON 结果');
+      }
+    }
+    return result;
+  }
+
+  // 创建镜头对象
+  _createShot(index, videoDuration, originalShot = {}) {
+    const startTime = index * SHOT_DURATION;
+    const isLastShot = startTime + SHOT_DURATION >= videoDuration;
+    const endTime = isLastShot ? videoDuration : startTime + SHOT_DURATION;
+
+    return {
+      shotNumber: index + 1,
+      timeRange: `${startTime.toFixed(2)}-${endTime.toFixed(2)}`,
+      startTime,
+      endTime,
+      framing: originalShot.framing,
+      composition: originalShot.composition,
+      lighting: originalShot.lighting,
+      movement: originalShot.movement,
+      action: originalShot.action ,
+      syncPoint: originalShot.syncPoint,
+      beatPoint: originalShot.beatPoint,
+      transition: originalShot.transition,
+      prompt: originalShot.prompt
+    };
+  }
+
+  // 修正分镜脚本时间
+  _correctShotTimings(storyboard, videoDuration) {
+    if (!storyboard?.shots) return;
+
+    const requiredShots = Math.ceil(videoDuration / SHOT_DURATION);
+    const shots = storyboard.shots;
+
+    if (shots.length !== requiredShots) {
+      console.log(`   ⚠️  镜头数量不匹配（生成${shots.length}个，需要${requiredShots}个），正在修正...`);
+      storyboard.shots = Array.from({ length: requiredShots }, (_, i) =>
+        this._createShot(i, videoDuration, shots[i])
+      );
+    } else {
+      shots.forEach((shot, i) => Object.assign(shot, this._createShot(i, videoDuration, shot)));
+    }
+
+    storyboard.totalDuration = videoDuration;
+  }
+
+  // 生成分镜脚本
+  async generate(audioPath, lyricsText = null) {
+    console.log('🎬 Agent 1: 音乐分析与分镜生成器 - 开始生成...');
+
+    try {
+      // 获取音频时长
+      const audioInfo = await audioUtils.getAudioInfo(audioPath).catch(() => ({ duration: 30 }));
+      const videoDuration = audioInfo.duration || 30;
+      console.log(`   📊 音频时长: ${videoDuration.toFixed(2)} 秒`);
+
+      const prompt = this._buildPrompt(videoDuration, lyricsText);
+
+      // 尝试音频分析，失败则回退到文本分析
       let result;
       try {
-        console.log('   📡 上传音频文件到 Gemini API...');
         result = await geminiClient.generateJSONWithAudio(prompt, audioPath);
-        console.log('   ✅ 音乐分析与分镜生成完成');
       } catch (error) {
-        console.warn('   ⚠️  音频文件分析失败，使用文本模式分析');
-        // 如果音频分析失败，回退到基于歌词和文件名的文本分析
+        console.warn('   ⚠️  音频分析失败，使用文本模式');
         const fileName = path.basename(audioPath, path.extname(audioPath));
-        const fallbackPrompt = `You are a professional music video producer. Please analyze the following music and generate a storyboard:
-
-${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}Filename: ${fileName}
-
-${prompt}`;
+        const fallbackPrompt = `You are a professional music video producer. Please analyze the following music and generate a storyboard:\n\n${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}Filename: ${fileName}\n\n${prompt}`;
         result = await geminiClient.generateJSON(fallbackPrompt);
       }
-      
-      // 解析结果
-      let parsedResult;
-      if (result.raw) {
-        try {
-          parsedResult = typeof result.raw === 'string' ? JSON.parse(result.raw) : result.raw;
-        } catch (e) {
-          // 如果解析失败，尝试提取 JSON
-          const jsonMatch = result.raw.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            parsedResult = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('无法解析 JSON 结果');
-          }
-        }
-      } else {
-        parsedResult = result;
-      }
 
-      // 验证和修正分镜脚本的时间 - 强制每个镜头8秒
-      if (parsedResult.storyboard && parsedResult.storyboard.shots) {
-        const shots = parsedResult.storyboard.shots;
-        const SHOT_DURATION = 8.0; // 固定每个镜头8秒
-        
-        // 计算需要的镜头数量
-        const requiredShots = Math.ceil(videoDuration / SHOT_DURATION);
-        
-        // 如果AI生成的镜头数量不对，重新生成镜头列表
-        if (shots.length !== requiredShots) {
-          console.log(`   ⚠️  AI生成了 ${shots.length} 个镜头，需要 ${requiredShots} 个镜头，正在修正...`);
-          
-          // 重新构建镜头列表，每个镜头固定8秒
-          const newShots = [];
-          for (let i = 0; i < requiredShots; i++) {
-            const startTime = i * SHOT_DURATION;
-            const endTime = i === requiredShots - 1 
-              ? videoDuration  // 最后一个镜头结束在视频总时长
-              : startTime + SHOT_DURATION;
-            
-            // 如果原镜头存在，保留其内容，只更新时间
-            const originalShot = shots[i] || {};
-            newShots.push({
-              shotNumber: i + 1,
-              timeRange: `${startTime.toFixed(2)}-${endTime.toFixed(2)}`,
-              startTime: startTime,
-              endTime: endTime,
-              framing: originalShot.framing || '中景',
-              composition: originalShot.composition || '默认构图',
-              lighting: originalShot.lighting || '自然光',
-              movement: originalShot.movement || '静止',
-              action: originalShot.action || '画面动作',
-              syncPoint: originalShot.syncPoint || `第${i + 1}个8秒段落`,
-              beatPoint: originalShot.beatPoint || null,
-              transition: originalShot.transition || { type: '切入', duration: 0.5 },
-              prompt: originalShot.prompt || `第${i + 1}个镜头的视觉内容`,
-            });
-          }
-          parsedResult.storyboard.shots = newShots;
-        } else {
-          // 如果数量正确，强制修正每个镜头的时间为8秒
-          shots.forEach((shot, index) => {
-            const startTime = index * SHOT_DURATION;
-            const endTime = index === shots.length - 1 
-              ? videoDuration  // 最后一个镜头结束在视频总时长
-              : startTime + SHOT_DURATION;
-            
-            shot.startTime = startTime;
-            shot.endTime = endTime;
-            shot.timeRange = `${startTime.toFixed(2)}-${endTime.toFixed(2)}`;
-            shot.shotNumber = index + 1;
-          });
-        }
-        
-        parsedResult.storyboard.totalDuration = videoDuration;
-        console.log(`   ✅ 已修正为 ${parsedResult.storyboard.shots.length} 个镜头，每个镜头固定8秒`);
-      }
+      const parsedResult = this._parseResult(result);
+      this._correctShotTimings(parsedResult.storyboard, videoDuration);
 
-      // 尝试获取音频基本信息（可选）
-      let audioInfoDetail = null;
-      let bpmInfo = null;
-      try {
-        audioInfoDetail = await audioUtils.getAudioInfo(audioPath);
-        bpmInfo = await audioUtils.detectBPM(audioPath);
-      } catch (error) {
-        // 忽略音频信息获取错误
-      }
+      // 获取音频详细信息（可选）
+      const [audioInfoDetail, bpmInfo] = await Promise.allSettled([
+        audioUtils.getAudioInfo(audioPath),
+        audioUtils.detectBPM(audioPath)
+      ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
 
-      const finalResult = {
+      console.log(`   ✅ 生成完成：${parsedResult.storyboard?.shots?.length || 0} 个镜头\n`);
+
+      return {
         audioInfo: audioInfoDetail || { duration: videoDuration, note: '未获取音频技术信息' },
         bpmInfo: bpmInfo || { note: '未检测BPM' },
         musicAnalysis: parsedResult.musicAnalysis,
         visualConcept: parsedResult.visualConcept,
         storyboard: parsedResult.storyboard,
         timestamp: new Date().toISOString(),
-        analysisMethod: 'gemini-direct',
+        analysisMethod: 'gemini-direct'
       };
-
-      console.log(`   ✅ 生成完成：${parsedResult.storyboard?.shots?.length || 0} 个镜头`);
-      return finalResult;
     } catch (error) {
       console.error('❌ 音乐分析与分镜生成失败:', error);
       throw error;

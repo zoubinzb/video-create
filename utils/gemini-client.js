@@ -111,364 +111,266 @@ class GeminiClient {
    */
   async generateJSONWithAudio(prompt, audioPath, modelName = null) {
     try {
-      const enhancedPrompt = `${prompt}\n\n请以 JSON 格式返回结果，确保格式正确。`;
+      const enhancedPrompt = `${prompt}\n\n请以 JSON 格式返回结果，确保格式正确。注意：
+1. 不要在 JSON 中使用注释
+2. 所有字符串必须用双引号
+3. 数组最后一个元素后不要有逗号
+4. 对象最后一个属性后不要有逗号
+5. 确保所有括号都正确闭合`;
       const text = await this.generateTextWithFile(enhancedPrompt, audioPath, null, modelName);
       
-      // 尝试提取 JSON
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
+      // 尝试提取 JSON（使用非贪婪匹配，找到第一个完整的大括号对）
+      let jsonText = null;
       
-      // 如果无法提取 JSON，返回文本
-      return { raw: text };
-    } catch (error) {
-      console.error('JSON 解析错误:', error);
-      return { raw: '', error: error.message };
-    }
-  }
-
-  /**
-   * 生成图像（使用 gemini-2.5-flash-image-preview）
-   * @param {string} prompt - 图像生成提示词
-   * @param {string} outputPath - 输出路径
-   * @param {object} options - 选项
-   * @param {string|string[]} options.referenceImage - 参考图片路径（可选）
-   */
-  async generateImage(prompt, outputPath, options = {}) {
-    try {
-      const modelName = options.model || 'gemini-2.5-flash-image-preview';
-      const referenceImage = options.referenceImage;
-      
-      console.log(`   🎨 使用 ${modelName} 生成图像...`);
-      if (referenceImage) {
-        console.log(`   📸 使用参考图片: ${typeof referenceImage === 'string' ? path.basename(referenceImage) : referenceImage.length + ' 张'}`);
-      }
-      
-      // 构建 contents，如果提供了参考图片，将其作为多模态输入的一部分
-      let contents = prompt;
-      
-      if (referenceImage) {
-        // 如果提供了参考图片，构建多模态内容
-        const imagePaths = Array.isArray(referenceImage) ? referenceImage : [referenceImage];
-        const imageParts = [];
+      // 方法1：尝试找到最外层的 {}
+      const firstBrace = text.indexOf('{');
+      if (firstBrace !== -1) {
+        let braceCount = 0;
+        let inString = false;
+        let escapeNext = false;
         
-        // 读取参考图片并转换为 base64
-        for (const imgPath of imagePaths) {
-          if (fs.existsSync(imgPath)) {
-            const imageData = fs.readFileSync(imgPath);
-            const ext = path.extname(imgPath).toLowerCase();
-            const mimeTypes = {
-              '.png': 'image/png',
-              '.jpg': 'image/jpeg',
-              '.jpeg': 'image/jpeg',
-              '.webp': 'image/webp',
-            };
-            const mimeType = mimeTypes[ext] || 'image/jpeg';
-            
-            imageParts.push({
-              inlineData: {
-                data: imageData.toString('base64'),
-                mimeType: mimeType,
-              },
-            });
+        for (let i = firstBrace; i < text.length; i++) {
+          const char = text[i];
+          
+          if (escapeNext) {
+            escapeNext = false;
+            continue;
           }
-        }
-        
-        // 如果有参考图片，构建多模态内容：先图片，后文本提示词
-        if (imageParts.length > 0) {
-          contents = [
-            ...imageParts,
-            { text: prompt },
-          ];
-        }
-      }
-      
-      // 调用 Gemini 图像生成 API
-      // 根据 @google/genai 库的格式
-      const response = await this.ai.models.generateContent({
-        model: modelName,
-        contents: contents,
-      });
-      
-      // 解析响应，提取图像数据
-      // 检查不同的响应格式
-      let imageData = null;
-      
-      // 方式1: 检查 response.candidates
-      if (response.candidates && response.candidates.length > 0) {
-        const candidate = response.candidates[0];
-        
-        if (candidate.content) {
-          // 检查 content.parts
-          if (candidate.content.parts) {
-            for (const part of candidate.content.parts) {
-              if (part.inlineData && part.inlineData.data) {
-                imageData = part.inlineData.data;
+          
+          if (char === '\\') {
+            escapeNext = true;
+            continue;
+          }
+          
+          if (char === '"' && !escapeNext) {
+            inString = !inString;
+            continue;
+          }
+          
+          if (!inString) {
+            if (char === '{') braceCount++;
+            if (char === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                jsonText = text.substring(firstBrace, i + 1);
                 break;
               }
             }
           }
-          
-          // 检查 content.text（可能包含 base64）
-          if (!imageData && candidate.content.text) {
-            const base64Match = candidate.content.text.match(/data:image\/[^;]+;base64,([^\s"']+)/);
-            if (base64Match) {
-              imageData = base64Match[1];
-            }
-          }
         }
       }
       
-      // 方式2: 检查 response.text
-      if (!imageData && response.text) {
-        const base64Match = response.text.match(/data:image\/[^;]+;base64,([^\s"']+)/);
-        if (base64Match) {
-          imageData = base64Match[1];
-        }
+      if (!jsonText) {
+        console.error('❌ 无法从响应中提取 JSON');
+        console.error('响应内容:', text.substring(0, 500));
+        throw new Error('无法提取有效的 JSON');
       }
       
-      // 方式3: 检查 response 本身是否包含图像数据
-      if (!imageData && response.data) {
-        if (typeof response.data === 'string') {
-          imageData = response.data;
-        } else if (response.data.inlineData && response.data.inlineData.data) {
-          imageData = response.data.inlineData.data;
-        }
-      }
+      // 清理 JSON 文本
+      jsonText = this.cleanJSON(jsonText);
       
-      if (imageData) {
-        // 解码 base64 图像数据
-        const imageBuffer = Buffer.from(imageData, 'base64');
-        fs.writeFileSync(outputPath, imageBuffer);
-        console.log(`   ✅ 图像已保存到: ${outputPath}`);
-        return outputPath;
+      // 尝试解析
+      try {
+        return JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('❌ JSON 解析失败');
+        console.error('错误:', parseError.message);
+        console.error('JSON 内容（前 1000 字符）:', jsonText.substring(0, 1000));
+        
+        // 保存错误的 JSON 到文件以便调试
+        const errorLogPath = path.join(process.cwd(), 'output', `json_error_${Date.now()}.txt`);
+        fs.writeFileSync(errorLogPath, `错误: ${parseError.message}\n\n原始响应:\n${text}\n\n提取的JSON:\n${jsonText}`, 'utf-8');
+        console.error(`💾 错误日志已保存: ${errorLogPath}`);
+        
+        throw parseError;
       }
-      
-      // 如果所有方式都失败，打印响应以便调试
-      console.error('API 响应结构:', JSON.stringify(response, null, 2).substring(0, 500));
-      throw new Error('未找到图像数据，API 响应格式可能不正确。请检查 API 响应结构。');
     } catch (error) {
-      console.error('图像生成错误:', error.message);
-      // 如果 API 调用失败，抛出错误让调用者处理
+      console.error('JSON 解析错误:', error);
       throw error;
     }
   }
+  
+  /**
+   * 清理 JSON 文本，移除常见错误
+   */
+  cleanJSON(jsonText) {
+    // 移除注释（// 和 /* */）
+    jsonText = jsonText.replace(/\/\/.*$/gm, '');
+    jsonText = jsonText.replace(/\/\*[\s\S]*?\*\//g, '');
+    
+    // 移除尾随逗号（数组和对象中）
+    jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1');
+    
+    return jsonText;
+  }
 
   /**
-   * 生成视频（使用 veo-3.1-generate-preview，支持参考图像和重试机制）
+   * 生成图像
+   * @param {string} prompt - 图像生成提示词
+   * @param {string} outputPath - 输出路径
+   * @param {object} options - 选项
+   */
+  async generateImage(prompt, outputPath, options = {}) {
+    const modelName = options.model || 'gemini-2.5-flash-image-preview';
+    const referenceImage = options.referenceImage;
+    
+    // 构建内容
+    let contents = prompt;
+    
+    if (referenceImage) {
+      const imagePaths = Array.isArray(referenceImage) ? referenceImage : [referenceImage];
+      const imageParts = [];
+      
+      for (const imgPath of imagePaths) {
+        if (fs.existsSync(imgPath)) {
+          const imageData = fs.readFileSync(imgPath);
+          const ext = path.extname(imgPath).toLowerCase();
+          const mimeTypes = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp'
+          };
+          
+          imageParts.push({
+            inlineData: {
+              data: imageData.toString('base64'),
+              mimeType: mimeTypes[ext] || 'image/jpeg'
+            }
+          });
+        }
+      }
+      
+      if (imageParts.length > 0) {
+        contents = [...imageParts, { text: prompt }];
+      }
+    }
+    
+    const response = await this.ai.models.generateContent({
+      model: modelName,
+      contents
+    });
+    
+    // 提取图像数据
+    let imageData = null;
+    
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData?.data) {
+          imageData = part.inlineData.data;
+          break;
+        }
+      }
+    }
+    
+    if (!imageData && response.text) {
+      const base64Match = response.text.match(/data:image\/[^;]+;base64,([^\s"']+)/);
+      if (base64Match) imageData = base64Match[1];
+    }
+    
+    if (!imageData) {
+      throw new Error('未找到图像数据');
+    }
+    
+    const imageBuffer = Buffer.from(imageData, 'base64');
+    fs.writeFileSync(outputPath, imageBuffer);
+    return outputPath;
+  }
+
+  /**
+   * 生成视频
+   * @param {string} prompt - 视频生成提示词
+   * @param {string} outputPath - 输出路径
+   * @param {string} modelName - 模型名称
+   * @param {Array} referenceImages - 参考图像数组（首帧和尾帧）
+   * @param {object} retryOptions - 重试选项
    */
   async generateVideo(prompt, outputPath, modelName = 'veo-3.1-generate-preview', referenceImages = [], retryOptions = {}) {
-    const {
-      maxRetries = 3,
-      retryDelay = 60000, // 60秒延迟
-      exponentialBackoff = true,
-    } = retryOptions;
+    const { maxRetries = 3, retryDelay = 60000, exponentialBackoff = true } = retryOptions;
     
-    let lastError = null;
+    const mimeTypes = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp'
+    };
+    
+    // 处理参考图像
+    const processImage = (imgPath) => {
+      if (!fs.existsSync(imgPath)) return null;
+      const fileData = fs.readFileSync(imgPath);
+      const ext = path.extname(imgPath).toLowerCase();
+      return {
+        imageBytes: fileData.toString('base64'),
+        mimeType: mimeTypes[ext] || 'image/png'
+      };
+    };
     
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         if (attempt > 0) {
           const delay = exponentialBackoff ? retryDelay * Math.pow(2, attempt - 1) : retryDelay;
           console.log(`   ⏳ 等待 ${delay / 1000} 秒后重试（第 ${attempt}/${maxRetries} 次）...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
         
-        console.log(`   🎬 开始生成视频: ${prompt.substring(0, 60)}...`);
+        const videoParams = { model: modelName, prompt };
         
-        // 构建视频生成参数
-        // 根据官方文档，使用 image（首帧）和 config.lastFrame（尾帧）
-        const videoParams = {
-          model: modelName,
-          prompt: prompt,
-        };
-        
-        // 处理首尾帧图像
-        // 根据官方文档和错误信息，使用 bytesBase64Encoded 和 mimeType
-        let firstFrameImage = null;
-        let lastFrameImage = null;
-        
-        if (referenceImages && referenceImages.length > 0) {
-          // 第一张图像作为首帧（image 参数）
-          const firstImg = referenceImages[0];
-          if (typeof firstImg === 'string' && fs.existsSync(firstImg)) {
-            const fileData = fs.readFileSync(firstImg);
-            const ext = path.extname(firstImg).toLowerCase();
-            const mimeTypes = {
-              '.png': 'image/png',
-              '.jpg': 'image/jpeg',
-              '.jpeg': 'image/jpeg',
-              '.webp': 'image/webp',
-            };
-            const mimeType = mimeTypes[ext] || 'image/png';
-            
-            // 根据官方文档 JavaScript 示例，使用 imageBytes（官方格式）
-            // 官方文档：image: { imageBytes: ..., mimeType: "image/png" }
-            const base64String = fileData.toString('base64');
-            firstFrameImage = {
-              imageBytes: base64String,
-              mimeType: mimeType,
-            };
-            console.log(`   📸 首帧图像: ${path.basename(firstImg)} (${mimeType})`);
-          } else if (typeof firstImg === 'object') {
-            // 如果已经是对象格式，检查并转换为正确的格式（驼峰格式）
-            if (firstImg.bytesBase64Encoded || firstImg.bytes_base64_encoded) {
-              // 如果已经是正确格式，直接使用
-              firstFrameImage = {
-                bytesBase64Encoded: firstImg.bytesBase64Encoded || firstImg.bytes_base64_encoded,
-                mimeType: firstImg.mimeType || firstImg.mime_type || 'image/png',
-              };
-            } else if (firstImg.imageBytes) {
-              // 转换 imageBytes 为 bytesBase64Encoded
-              firstFrameImage = {
-                bytesBase64Encoded: firstImg.imageBytes,
-                mimeType: firstImg.mimeType || firstImg.mime_type || 'image/png',
-              };
-            } else if (firstImg.inlineData) {
-              firstFrameImage = {
-                bytesBase64Encoded: firstImg.inlineData.data,
-                mimeType: firstImg.inlineData.mimeType || 'image/png',
-              };
-            }
-          }
+        if (referenceImages?.length > 0) {
+          const firstFrame = processImage(referenceImages[0]);
+          if (firstFrame) videoParams.image = firstFrame;
           
-          // 第二张图像作为尾帧（config.lastFrame）
           if (referenceImages.length > 1) {
-            const lastImg = referenceImages[1];
-            if (typeof lastImg === 'string' && fs.existsSync(lastImg)) {
-              const fileData = fs.readFileSync(lastImg);
-              const ext = path.extname(lastImg).toLowerCase();
-              const mimeTypes = {
-                '.png': 'image/png',
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.webp': 'image/webp',
-              };
-              const mimeType = mimeTypes[ext] || 'image/png';
-              
-              // 根据官方文档，使用 imageBytes（官方格式）
-              const base64String = fileData.toString('base64');
-              lastFrameImage = {
-                imageBytes: base64String,
-                mimeType: mimeType,
-              };
-              console.log(`   📸 尾帧图像: ${path.basename(lastImg)} (${mimeType})`);
-            } else if (typeof lastImg === 'object') {
-              // 如果已经是对象格式，检查并转换为正确的格式（驼峰格式）
-              if (lastImg.bytesBase64Encoded || lastImg.bytes_base64_encoded) {
-                // 如果已经是正确格式，直接使用
-                lastFrameImage = {
-                  bytesBase64Encoded: lastImg.bytesBase64Encoded || lastImg.bytes_base64_encoded,
-                  mimeType: lastImg.mimeType || lastImg.mime_type || 'image/png',
-                };
-              } else if (lastImg.imageBytes) {
-                // 转换 imageBytes 为 bytesBase64Encoded
-                lastFrameImage = {
-                  bytesBase64Encoded: lastImg.imageBytes,
-                  mimeType: lastImg.mimeType || lastImg.mime_type || 'image/png',
-                };
-              } else if (lastImg.inlineData) {
-                lastFrameImage = {
-                  bytesBase64Encoded: lastImg.inlineData.data,
-                  mimeType: lastImg.inlineData.mimeType || 'image/png',
-                };
-              }
-            }
+            const lastFrame = processImage(referenceImages[1]);
+            if (lastFrame) videoParams.config = { lastFrame };
           }
-        }
-        
-        // 设置首帧（image 参数）
-        if (firstFrameImage) {
-          videoParams.image = firstFrameImage;
-        }
-        
-        // 设置尾帧（config.lastFrame）
-        if (lastFrameImage) {
-          videoParams.config = {
-            lastFrame: lastFrameImage,
-          };
-        }
-        
-        // 开始生成视频
-        console.log(`   📤 调用 Veo API，${firstFrameImage ? '包含首帧' : ''}${firstFrameImage && lastFrameImage ? '和' : ''}${lastFrameImage ? '尾帧' : ''}`);
-        
-        // 调试：打印参数结构（仅打印关键信息，不打印完整的 base64）
-        if (firstFrameImage) {
-          const base64Data = firstFrameImage.bytesBase64Encoded || firstFrameImage.bytes_base64_encoded || '';
-          const mimeType = firstFrameImage.mimeType || firstFrameImage.mime_type || '';
-          console.log(`   🔍 首帧参数结构: { bytesBase64Encoded: '${base64Data.substring(0, 20)}...', mimeType: '${mimeType}' }`);
-        }
-        if (lastFrameImage) {
-          const base64Data = lastFrameImage.bytesBase64Encoded || lastFrameImage.bytes_base64_encoded || '';
-          const mimeType = lastFrameImage.mimeType || lastFrameImage.mime_type || '';
-          console.log(`   🔍 尾帧参数结构: { bytesBase64Encoded: '${base64Data.substring(0, 20)}...', mimeType: '${mimeType}' }`);
         }
         
         let operation = await this.ai.models.generateVideos(videoParams);
-
         console.log('   ⏳ 等待视频生成完成...');
         
-        // 轮询操作状态直到完成
         let pollCount = 0;
-        const maxPolls = 120; // 最多轮询 20 分钟（120 * 10秒）
+        const maxPolls = 120;
         
         while (!operation.done && pollCount < maxPolls) {
-          await new Promise((resolve) => setTimeout(resolve, 10000)); // 等待 10 秒
-          operation = await this.ai.operations.getVideosOperation({
-            operation: operation,
-          });
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          operation = await this.ai.operations.getVideosOperation({ operation });
           pollCount++;
           
-          if (pollCount % 6 === 0) { // 每分钟输出一次进度
+          if (pollCount % 6 === 0) {
             console.log(`   ⏳ 已等待 ${Math.floor(pollCount * 10 / 60)} 分钟...`);
           }
         }
 
         if (!operation.done) {
-          throw new Error('视频生成超时，请稍后重试');
+          throw new Error('视频生成超时');
         }
 
-        // 检查是否有生成的视频
-        if (!operation.response || !operation.response.generatedVideos || operation.response.generatedVideos.length === 0) {
+        if (!operation.response?.generatedVideos?.[0]) {
           throw new Error('视频生成失败：未返回视频文件');
         }
 
-        // 下载生成的视频
-        console.log('   📥 下载生成的视频...');
         await this.ai.files.download({
           file: operation.response.generatedVideos[0].video,
-          downloadPath: outputPath,
+          downloadPath: outputPath
         });
 
-        console.log(`   ✅ 视频已保存到: ${outputPath}`);
         return outputPath;
       } catch (error) {
-        lastError = error;
-        
-        // 检查是否是配额错误（429）
-        if (error.status === 429 || (error.message && error.message.includes('429'))) {
-          console.error(`   ❌ API 配额超限 (429): ${error.message}`);
-          if (attempt < maxRetries) {
-            console.log(`   💡 将在重试时等待更长时间...`);
-            continue; // 继续重试
-          } else {
-            throw new Error(`API 配额已用完。请检查您的配额和账单：${error.message}`);
+        if (error.status === 429 || error.message?.includes('429')) {
+          if (attempt === maxRetries) {
+            throw new Error(`API 配额已用完：${error.message}`);
           }
+          console.log(`   ⚠️  配额超限，将重试...`);
+          continue;
         }
         
-        // 其他错误，如果是最后一次尝试则抛出
-        if (attempt === maxRetries) {
-          throw error;
-        }
-        
-        // 其他错误也继续重试
-        console.warn(`   ⚠️  视频生成失败（尝试 ${attempt + 1}/${maxRetries + 1}）: ${error.message}`);
+        if (attempt === maxRetries) throw error;
+        console.warn(`   ⚠️  生成失败（尝试 ${attempt + 1}/${maxRetries + 1}）: ${error.message}`);
       }
     }
     
-    // 如果所有重试都失败，抛出最后一个错误
-    throw lastError || new Error('视频生成失败：未知错误');
+    throw new Error('视频生成失败');
   }
 }
 

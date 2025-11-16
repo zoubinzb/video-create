@@ -5,17 +5,90 @@ import config from '../config/config.js';
 
 class VideoComposerAgent {
   /**
+   * 从 temp 目录读取视频文件
+   * @param {string} tempDir - temp 目录路径
+   * @param {object} storyboard - 分镜脚本（用于获取时长信息）
+   * @returns {Array} 视频素材数组
+   */
+  loadVideosFromTempDir(tempDir, storyboard = null) {
+    console.log(`   📂 从目录读取视频: ${tempDir}`);
+    
+    if (!fs.existsSync(tempDir)) {
+      throw new Error(`temp 目录不存在: ${tempDir}`);
+    }
+    
+    // 读取目录中的所有 mp4 文件
+    const files = fs.readdirSync(tempDir)
+      .filter(file => file.endsWith('.mp4'))
+      .sort(); // 按文件名排序
+    
+    if (files.length === 0) {
+      throw new Error(`在 ${tempDir} 中未找到视频文件`);
+    }
+    
+    // 构建素材数组
+    const materials = files.map((file, index) => {
+      const match = file.match(/shot_(\d+)\.mp4/);
+      const shotNumber = match ? parseInt(match[1]) : index + 1;
+      const filePath = path.join(tempDir, file);
+      
+      // 从 storyboard 获取时长信息
+      let startTime = 0;
+      let endTime = 10; // 默认 10 秒
+      
+      if (storyboard && storyboard.shots) {
+        const shot = storyboard.shots.find(s => s.shotNumber === shotNumber);
+        if (shot) {
+          startTime = shot.startTime || 0;
+          endTime = shot.endTime || startTime + 10;
+        }
+      }
+      
+      return {
+        shotNumber,
+        path: filePath,
+        type: 'video',
+        startTime,
+        endTime,
+        timeRange: `${startTime.toFixed(2)}-${endTime.toFixed(2)}`,
+      };
+    });
+    
+    console.log(`   ✅ 找到 ${materials.length} 个视频文件`);
+    materials.forEach(m => {
+      console.log(`      - ${path.basename(m.path)} (镜头 ${m.shotNumber}, ${m.timeRange}s)`);
+    });
+    
+    return materials;
+  }
+
+  /**
    * 合并视频合成、调色、音频混音和最终渲染
    * 按照顺序合成视频，并加入音频
+   * @param {Array|string} materialsOrTempDir - 素材数组或 temp 目录路径
+   * @param {string} audioPath - 音频文件路径
+   * @param {string} outputPath - 输出文件路径
+   * @param {object} options - 选项（visualConcept, storyboard）
    */
-  async compose(materials, audioPath, outputPath, visualConcept = null) {
+  async compose(materialsOrTempDir, audioPath, outputPath, options = {}) {
     console.log('🎬 Agent 2: 视频合成器 - 开始合成...');
     
     try {
-      // 过滤并排序素材
-      const mediaInputs = materials
-        .filter(m => m.path && fs.existsSync(m.path))
-        .sort((a, b) => a.shotNumber - b.shotNumber);
+      let mediaInputs;
+      
+      // 判断是目录路径还是素材数组
+      if (typeof materialsOrTempDir === 'string') {
+        // 从目录读取
+        const materials = this.loadVideosFromTempDir(materialsOrTempDir, options.storyboard);
+        mediaInputs = materials
+          .filter(m => m.path && fs.existsSync(m.path))
+          .sort((a, b) => a.shotNumber - b.shotNumber);
+      } else {
+        // 使用传入的素材数组（保持向后兼容）
+        mediaInputs = materialsOrTempDir
+          .filter(m => m.path && fs.existsSync(m.path))
+          .sort((a, b) => a.shotNumber - b.shotNumber);
+      }
       
       if (mediaInputs.length === 0) {
         throw new Error('没有可用的素材');
@@ -66,8 +139,17 @@ class VideoComposerAgent {
       
       // 应用视觉特效和调色（如果有）
       let videoOutputLabel = '[vconcat]';
+      const visualConcept = options.visualConcept;
       if (visualConcept && visualConcept.visualConcept) {
         const style = visualConcept.visualConcept.style?.name || '';
+        const colorFilters = this.buildColorFilters(style);
+        if (colorFilters) {
+          filters.push(`[vconcat]${colorFilters}[vfinal]`);
+          videoOutputLabel = '[vfinal]';
+        }
+      } else if (visualConcept && visualConcept.style) {
+        // 如果直接传入的是 visualConcept 对象
+        const style = visualConcept.style?.name || '';
         const colorFilters = this.buildColorFilters(style);
         if (colorFilters) {
           filters.push(`[vconcat]${colorFilters}[vfinal]`);
