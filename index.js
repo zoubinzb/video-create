@@ -7,6 +7,7 @@ import { findAudioFile, findLyricsFile } from './utils/utils.js';
 // 导入所有 Agents
 import musicStoryboardGenerator from './agents/music-storyboard-generator.js';
 import keyframeGenerator from './agents/keyframe-generator.js';
+import keyframeGeneratorV2 from './agents/keyframe-generator-v2.js';
 import videoGenerator from './agents/video-generator.js';
 import videoComposer from './agents/video-composer.js';
 
@@ -122,14 +123,13 @@ async function main() {
     // Agent 1: 音乐分析与分镜生成器（合并了音乐分析、视觉概念和分镜脚本）
     let storyboardData;
     const agent1ResultPath =  path.join(config.paths.output, `agent1_storyboard.json`);
-    // { // 使用AI 分析
-    //   storyboardData = await musicStoryboardGenerator.generate(audioPath, lyricsText);
-    //   fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
-    //   console.log(`Agent1 分析完成，结果也已经保存`)
-    // }
+    { // 使用AI 分析
+      storyboardData = await musicStoryboardGenerator.generate(audioPath, lyricsText);
+      fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
+      console.log(`Agent1 分析完成，结果也已经保存`)
+    }
 
-    // 使用的数据从缓存导入，便于各agent 分离
-    {
+    { // 使用的数据从缓存导入，便于各agent 分离
       storyboardData = JSON.parse(fs.readFileSync(agent1ResultPath, 'utf-8'));
     }
         
@@ -146,10 +146,18 @@ async function main() {
     
     // Agent 4: 关键帧生成器（生成 AB 关键帧）
     let keyframeData;
-    // {
+    
+    // 关键帧方案一：直接生成每个关键帧
+    // { 
     //   keyframeData = await keyframeGenerator.generate(storyboard);
     // }
 
+    // 关键帧方案二：先生成 storyboard 大图，再提取关键帧
+    { 
+      keyframeData = await keyframeGeneratorV2.generate(storyboard);
+    }
+
+    // 方案三：从已有目录加载关键帧
     keyframeData = loadKeyframesFromDirectory(storyboard);
     console.log(`   关键帧: ${keyframeData.keyframes?.length || 0} 个镜头，共 ${(keyframeData.keyframes?.length || 0) * 2} 个关键帧（从目录加载）\n`);
 
