@@ -272,9 +272,8 @@ class KeyframeGeneratorAgentV2 {
         }
       }));
       
-      // 使用并发控制，每批5个
+      // 使用并发控制，降低并发数以避免 API 速率限制
       await batchConcurrent(tasks,
-
         async (task) => {
           const keyframe = await this._extractKeyframe(
             task.shot,
@@ -289,12 +288,18 @@ class KeyframeGeneratorAgentV2 {
           );
         },
         {
-          concurrency: 4,
+          concurrency: 1, // 降低并发数，避免 API 速率限制
           onBatchStart: (batch, batchNum, total) => {
             console.log(`\n📦 批次 ${batchNum}/${total}: 镜头 ${batch[0].shot.shotNumber}-${batch[batch.length - 1].shot.shotNumber}`);
           },
-          onBatchComplete: (batch, batchNum) => {
-            console.log(`  ✅ 批次 ${batchNum} 完成\n`);
+          onBatchComplete: async (batch, batchNum, total) => {
+            console.log(`  ✅ 批次 ${batchNum} 完成`);
+            // 批次间添加延迟，避免速率限制
+            if (batchNum < total) {
+              const delay = 2000; // 2秒延迟
+              console.log(`  ⏳ 等待 ${delay}ms 后继续下一批次...\n`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
           }
         }
       );
