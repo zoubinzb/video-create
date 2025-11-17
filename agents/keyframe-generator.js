@@ -124,7 +124,7 @@ class KeyframeGeneratorAgent {
     }
   }
 
-  // 构建关键帧提示词
+  // 构建关键帧提示词（生成起始帧）
   _buildPrompt(shot, storyboard, { previousShot, nextShot }) {
     const concept = storyboard?.visualConcept?.visualConcept;
     const style = concept?.style?.name || '';
@@ -136,17 +136,27 @@ class KeyframeGeneratorAgent {
       'The scene is bright, soft, colorful, and friendly.',
       'The character\'s appearance, design, colors, and style must be identical to the reference image.',
       'Do not create a new character or modify the character design.',
-      `Keyframe for shot ${shot.shotNumber}: ${shot.composition}, ${shot.framing}, ${shot.lighting}`,
+      `Start frame (initial keyframe) for shot ${shot.shotNumber}: ${shot.composition}, ${shot.framing}, ${shot.lighting}`,
+      'This is the STARTING state of the shot, showing the initial moment before any action begins',
       'use the exact same cartoon character from the reference image, maintain character consistency'
     ];
     
-    if (shot.action) parts.push(shot.action);
+    // 如果有动作描述，强调这是动作的初始状态
+    if (shot.action) {
+      parts.push(`${shot.action} - initial state, action just beginning`);
+    } else {
+      parts.push('scene at its initial state, ready to begin');
+    }
+    
     if (style) parts.push(`${style} style`);
     if (colors) parts.push(`${colors} color palette`);
-    if (previousShot) parts.push(`visually connected to previous shot (shot ${previousShot.shotNumber}), smooth transition`);
-    if (nextShot) parts.push(`will transition to next shot (shot ${nextShot.shotNumber})`);
     
-    parts.push('cinematic, high quality, detailed, still frame, keyframe');
+    // 如果有前一个镜头，添加过渡提示（从上一个镜头的结束过渡到当前镜头的开始）
+    if (previousShot) {
+      parts.push(`visually connected to previous shot (shot ${previousShot.shotNumber}), smooth transition from previous scene`);
+    }
+    
+    parts.push('cinematic, high quality, detailed, still frame, start keyframe, initial moment');
     
     return parts.join(', ');
   }
