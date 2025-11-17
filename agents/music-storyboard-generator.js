@@ -37,7 +37,13 @@ Please analyze the following:
 - Theme Extraction: Main theme, keyword list (at least 5 keywords)
 - Structure Analysis: Identify verses, choruses, bridges, interludes, etc., and their time positions
 - Climax Recognition: Time when climax occurs (in seconds), intensity (0-10 scale)
-- Beat Point Recognition: Identify all important musical beat points (beat accents, rhythm changes, emotional transitions, etc.) and their time positions
+- **Beat Point Recognition (CRITICAL)**: 
+  - Identify ALL important musical beat points throughout the entire song
+  - Beat points include: beat accents (strong beats), rhythm changes, emotional transitions, melody changes, drum hits, etc.
+  - Record the EXACT time position (in seconds, precise to 2 decimal places) for EACH beat point
+  - These beat points will be used to synchronize video cuts and actions with the music rhythm
+  - Example: If you hear a strong beat at 2.5 seconds, record it as 2.50 in the beatPoints array
+  - The more beat points you identify, the better the video will sync with the music
 
 **Visual Concept Requirements:**
 Based on music analysis, generate:
@@ -49,20 +55,29 @@ Based on music analysis, generate:
 1. Total video duration must be exactly ${videoDuration.toFixed(2)} seconds
 2. **Each shot is fixed at ${SHOT_DURATION} seconds** (the last shot may be less than ${SHOT_DURATION} seconds, based on total video duration)
 3. Shot count calculation: ${shotsNeeded} shots are needed
-4. Each shot must include:
+4. **CRITICAL: Beat Point Integration**:
+   - After identifying all beat points in musicAnalysis.beatPoints, you MUST use them when creating shots
+   - For each shot, check which beat points fall within that shot's time range
+   - If a beat point falls within a shot's time range, set that shot's "beatPoint" field to the beat point's time (in seconds)
+   - The "syncPoint" field should describe how the shot syncs with music, referencing the beat points
+   - Example: If shot 1 is 0.00-8.00s and beat points are at 2.5s, 4.0s, 6.5s, then shot 1's beatPoint should be set to one of these (preferably the first or most prominent), and syncPoint should mention "syncs with beats at 2.5s, 4.0s, 6.5s"
+   - The action and camera movement should be designed to emphasize or change at these beat points
+5. Each shot must include:
    - Timecode (precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00, ...)
    - Framing (wide shot/medium shot/close-up/extreme close-up)
    - Composition description
    - Lighting description (cool tone/warm tone/high contrast, etc.)
    - Camera movement (push/pull/pan/track/static)
-   - Action description
-   - Sync point with music (must mark beat point positions)
+   - Action description (should be designed to sync with beat points in this shot)
+   - Sync point with music (must explicitly mention beat point positions and how the shot syncs with them)
+   - beatPoint: The time (in seconds) of the most prominent beat point within this shot's time range (if any)
    - Transition type (fade in/fade out/cut/wipe, etc.)
-   - Detailed prompt for image/video generation
-5. **Key Requirements**:
+   - Detailed prompt for image/video generation (should mention beat synchronization)
+6. **Key Requirements**:
    - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
    - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
    - Visual style and colors must be consistent with music emotion and theme
+   - **Each shot MUST reference the beat points within its time range in the syncPoint and beatPoint fields**
 
 Please return in JSON format, ensuring correct format:
 {
@@ -94,7 +109,15 @@ Please return in JSON format, ensuring correct format:
       "time": climax time (seconds, number),
       "intensity": intensity (number)
     },
-    "beatPoints": [time positions of all beat points (seconds, numbers)]
+    "beatPoints": [time positions of ALL beat points throughout the entire song (seconds, numbers, precise to 2 decimal places). 
+      IMPORTANT: List EVERY beat point you identify, including:
+      - Strong beat accents (every 0.5-2 seconds depending on tempo)
+      - Rhythm changes
+      - Melody changes  
+      - Emotional transitions
+      - Drum hits or percussion accents
+      - Any moment where the music has a noticeable emphasis or change
+      Example format: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, ...] - list all beat points from 0 to ${videoDuration.toFixed(2)} seconds]
   },
   "visualConcept": {
     "style": {
@@ -120,9 +143,9 @@ Please return in JSON format, ensuring correct format:
         "composition": "composition description",
         "lighting": "lighting description (cool tone/warm tone/high contrast, etc.)",
         "movement": "camera movement (push/pull/pan/track/static)",
-        "action": "action description",
-        "syncPoint": "sync point description with music (must mark beat point)",
-        "beatPoint": beat point time (seconds, number, if any),
+        "action": "action description (should be designed to sync with beat points in this shot)",
+        "syncPoint": "sync point description with music - MUST explicitly mention which beat points (from musicAnalysis.beatPoints) fall within this shot's time range and how the shot syncs with them. Example: 'Syncs with beats at 2.5s, 4.0s, 6.5s - action emphasizes at these moments'",
+        "beatPoint": the time (in seconds) of the most prominent beat point within this shot's time range, taken from musicAnalysis.beatPoints. If multiple beat points exist in this shot, choose the most prominent one. If no beat point falls in this shot, set to null,
         "transition": {
           "type": "transition type (fade in/fade out/cut/wipe, etc.)",
           "duration": transition duration (seconds, number)
