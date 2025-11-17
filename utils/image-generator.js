@@ -17,16 +17,19 @@ class ImageGenerator {
    */
   async generateImage(prompt, outputPath, options = {}) {
     const {
-      width = 1920,
-      height = 1080,
+      width = 1920,   // 1080p 默认宽度
+      height = 1080,  // 1080p 默认高度
       model = 'gemini-2.5-flash-image-preview',
-      referenceImage = null
+      referenceImage = null,
+      aspectRatio = '16:9'  // 1080p 默认宽高比
     } = options;
+
+    // 1080p 固定配置：1920x1080, 16:9
+    const finalAspectRatio = aspectRatio || '16:9';
 
     const geminiOptions = {
       model,
-      temperature: 0.9,
-      maxOutputTokens: 8192
+      aspectRatio: finalAspectRatio  // 1080p: 16:9
     };
 
     if (referenceImage) {

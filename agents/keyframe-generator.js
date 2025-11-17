@@ -5,8 +5,9 @@ import imageGenerator from '../utils/image-generator.js';
 import { batchConcurrent } from '../utils/utils.js';
 
 const IMAGE_CONFIG = {
-  width: 1920,
-  height: 1080,
+  width: 1920,   // 1080p 宽度
+  height: 1080,  // 1080p 高度
+  aspectRatio: '16:9',  // 1080p 宽高比
   style: 'cinematic',
   referenceImageName: '20251112-203804.jpg'
 };
@@ -77,6 +78,7 @@ class KeyframeGeneratorAgent {
         },
         {
           concurrency: 5,
+          startIndex: 0,
           onBatchStart: (batch, batchNum, total) => {
             console.log(`\n📦 批次 ${batchNum}/${total}: 镜头 ${batch[0].shot.shotNumber}-${batch[batch.length - 1].shot.shotNumber}`);
           },
@@ -163,7 +165,9 @@ class KeyframeGeneratorAgent {
 
   // 渲染关键帧图像
   async _renderImage(prompt, outputPath, shot, nextShot) {
-    const options = { ...IMAGE_CONFIG };
+    const options = { 
+      ...IMAGE_CONFIG,
+    };
     const hasReference = fs.existsSync(this.referenceImagePath);
     
     if (hasReference) {
@@ -171,7 +175,7 @@ class KeyframeGeneratorAgent {
     }
     
     await imageGenerator.generateImage(prompt, outputPath, options);
-    console.log(`    ✅ 关键帧生成完成${hasReference ? '（使用参考图片）' : ''}`);
+    console.log(`    ✅ 关键帧生成完成${hasReference ? '（使用参考图片）' : ''} (1080p, 1920x1080)`);
     return outputPath;
   }
 }

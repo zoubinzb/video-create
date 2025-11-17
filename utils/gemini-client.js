@@ -213,6 +213,7 @@ class GeminiClient {
   async generateImage(prompt, outputPath, options = {}) {
     const modelName = options.model || 'gemini-2.5-flash-image-preview';
     const referenceImage = options.referenceImage;
+    const aspectRatio = options.aspectRatio || '16:9';
     
     // 构建内容
     let contents = prompt;
@@ -246,9 +247,15 @@ class GeminiClient {
       }
     }
     
+    // 构建生成配置
+    const generationConfig = {
+      aspectRatio: aspectRatio
+    };
+    
     const response = await this.ai.models.generateContent({
       model: modelName,
-      contents
+      contents,
+      generationConfig
     });
     
     // 提取图像数据
