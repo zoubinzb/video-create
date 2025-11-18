@@ -12,6 +12,11 @@ const config = {
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
   },
+  doubao: {
+    apiKey: process.env.ARK_API_KEY || process.env.DOUBAO_API_KEY || '',
+    baseUrl: process.env.DOUBAO_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3',
+    model: process.env.DOUBAO_MODEL || 'doubao-seed-1-6-251015',
+  },
   jimeng: {
     apiKey: process.env.JIMENG_API_KEY || '',
     apiSecret: process.env.JIMENG_API_SECRET || '',
