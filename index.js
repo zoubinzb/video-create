@@ -8,6 +8,7 @@ import { findAudioFile, findLyricsFile } from './utils/utils.js';
 import musicStoryboardGenerator from './agents/music-storyboard-generator.js';
 import keyframeGenerator from './agents/keyframe-generator.js';
 import keyframeGeneratorV2 from './agents/keyframe-generator-v2.js';
+import keyframeGeneratorJimeng from './agents/keyframe-generator-jimeng.js';
 import videoGenerator from './agents/video-generator.js';
 import videoComposer from './agents/video-composer.js';
 
@@ -153,13 +154,18 @@ async function main() {
     // }
 
     // 关键帧方案二：先生成 storyboard 大图，再提取关键帧
+    // { 
+    //   keyframeData = await keyframeGeneratorV2.generate(storyboard);
+    // }
+
+    // 关键帧方案三：使用即梦生成关键帧（一次调用生成所有关键帧）
     { 
-      keyframeData = await keyframeGeneratorV2.generate(storyboard);
+      keyframeData = await keyframeGeneratorJimeng.generate(storyboard);
     }
 
-    // 方案三：从已有目录加载关键帧
-    keyframeData = loadKeyframesFromDirectory(storyboard);
-    console.log(`   关键帧: ${keyframeData.keyframes?.length || 0} 个镜头，共 ${(keyframeData.keyframes?.length || 0) * 2} 个关键帧（从目录加载）\n`);
+    // 方案四：从已有目录加载关键帧
+    // keyframeData = loadKeyframesFromDirectory(storyboard);
+    // console.log(`   关键帧: ${keyframeData.keyframes?.length || 0} 个镜头，共 ${(keyframeData.keyframes?.length || 0) * 2} 个关键帧（从目录加载）\n`);
 
     
     // Agent 5: 视频生成器（基于 AB 关键帧生成视频）

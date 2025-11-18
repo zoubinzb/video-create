@@ -12,6 +12,12 @@ const config = {
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
   },
+  jimeng: {
+    apiKey: process.env.JIMENG_API_KEY || '',
+    apiSecret: process.env.JIMENG_API_SECRET || '',
+    endpoint: process.env.JIMENG_ENDPOINT || 'https://visual.volcengineapi.com',
+    reqKey: process.env.JIMENG_REQ_KEY || 'jimeng_t2i_v40', // 即梦 API 的 req_key 参数
+  },
   paths: {
     input: process.env.INPUT_DIR || join(__dirname, '../input'),
     output: process.env.OUTPUT_DIR || join(__dirname, '../output'),
