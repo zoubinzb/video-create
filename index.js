@@ -11,6 +11,7 @@ import keyframeGeneratorV2 from './agents/keyframe-generator-v2.js';
 import musicStoryboardGeneratorDoubao from './agents/music-storyboard-generator-doubao.js';
 import keyframeGeneratorJimeng from './agents/keyframe-generator-jimeng.js';
 import videoGenerator from './agents/video-generator.js';
+import videoGeneratorAliyun from './agents/video-generator-aliyun.js';
 import videoComposer from './agents/video-composer.js';
 
 
@@ -125,11 +126,11 @@ async function main() {
     // Agent 1: 音乐分析与分镜生成器（合并了音乐分析、视觉概念和分镜脚本）
     let storyboardData;
     const agent1ResultPath =  path.join(config.paths.output, `agent1_storyboard.json`);
-    // { // 使用AI 分析
-    //   storyboardData = await musicStoryboardGenerator.generate(audioPath, lyricsText);
-    //   fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
-    //   console.log(`Agent1 分析完成，结果也已经保存`)
-    // }
+    { // 使用AI 分析
+      storyboardData = await musicStoryboardGenerator.generate(audioPath, lyricsText);
+      fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
+      console.log(`Agent1 分析完成，结果也已经保存`)
+    }
 
     // { // 使用豆包分析
     //   storyboardData = await musicStoryboardGeneratorDoubao.generate(audioPath, lyricsText);
@@ -167,18 +168,23 @@ async function main() {
     // }
 
     // 关键帧方案三：使用即梦生成关键帧（一次调用生成所有关键帧）
-    // { 
-    //   keyframeData = await keyframeGeneratorJimeng.generate(storyboard);
-    // }
+    { 
+      keyframeData = await keyframeGeneratorJimeng.generate(storyboard);
+    }
 
     // 方案四：从已有目录加载关键帧
     keyframeData = loadKeyframesFromDirectory(storyboard);
     console.log(`   关键帧: ${keyframeData.keyframes?.length || 0} 个镜头，共 ${(keyframeData.keyframes?.length || 0) * 2} 个关键帧（从目录加载）\n`);
 
     
-    // Agent 5: 视频生成器（基于 AB 关键帧生成视频）
+    // // Agent 5: 视频生成器（基于 AB 关键帧生成视频）
     const materials = await videoGenerator.generate(keyframeData);
     console.log(`   视频素材: ${materials.materials?.length || 0} 个\n`);
+
+    // Agent 6: 视频生成器（基于阿里万象 AB 关键帧生成视频）
+    // const materials = await videoGeneratorAliyun.generate(keyframeData);
+    // console.log(`   视频素材: ${materials.materials?.length || 0} 个\n`);
+
     
     // 阶段三：视频合成与输出
     console.log('📋 阶段三：视频合成与输出\n');

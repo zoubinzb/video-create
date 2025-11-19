@@ -23,6 +23,10 @@ const config = {
     endpoint: process.env.JIMENG_ENDPOINT || 'https://visual.volcengineapi.com',
     reqKey: process.env.JIMENG_REQ_KEY || 'jimeng_t2i_v40', // 即梦 API 的 req_key 参数
   },
+  aliyun: {
+    apiKey: process.env.DASHSCOPE_API_KEY || '',
+    baseUrl: process.env.ALIYUN_BASE_URL || 'https://dashscope.aliyuncs.com',
+  },
   paths: {
     input: process.env.INPUT_DIR || join(__dirname, '../input'),
     output: process.env.OUTPUT_DIR || join(__dirname, '../output'),

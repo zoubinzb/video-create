@@ -80,8 +80,10 @@ class KeyframeGeneratorAgentV2 {
       `- Equal-sized panels with consistent spacing`,
       `- Each panel shows a UNIQUE scene - different characters, actions, and settings`,
       ``,
-      `VISUAL STYLE (consistent across all panels):`,
-      `- Soft 3D cartoon style, pastel colors, very kid-friendly`,
+      `VISUAL STYLE (consistent across all panels - Cocomelon style):`,
+      `- Cocomelon animation style: bright vibrant colors, simple cute character design, smooth 3D animation`,
+      `- Child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds`,
+      `- Educational and entertaining, playful and cheerful atmosphere`,
       `- Bright, soft, colorful, and friendly atmosphere`,
       `- Warm lighting throughout`,
       `- NO text labels, only panel numbers in corners`,
@@ -151,7 +153,9 @@ class KeyframeGeneratorAgentV2 {
     parts.push('');
     parts.push('OUTPUT REQUIREMENTS:');
     parts.push('- Single, clear keyframe image (1920x1080)');
-    parts.push('- Soft 3D cartoon style, pastel colors, kid-friendly');
+    parts.push('- Cocomelon animation style: bright vibrant colors, simple cute character design, smooth 3D animation');
+    parts.push('- Child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds');
+    parts.push('- Educational and entertaining, playful and cheerful atmosphere');
     parts.push('- Bright, soft, colorful, and friendly atmosphere');
     parts.push('- Warm lighting, no text or labels');
     parts.push('- Maintain exact visual consistency with the source panel');

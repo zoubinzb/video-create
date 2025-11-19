@@ -68,6 +68,7 @@ class KeyframeGeneratorJimeng {
     
     const parts = [
       'IMPORTANT: You must use the exact cartoon character from the reference image provided.',
+      'Cocomelon animation style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere.',
       'Style: soft 3D cartoon, pastel colors, smooth movement, very kid-friendly, warm lighting, no text.',
       'The scene is bright, soft, colorful, and friendly.',
       'The character\'s appearance, design, colors, and style must be identical to the reference image.',
