@@ -11,7 +11,7 @@ class GeminiClient {
     this.ai = new GoogleGenAI({
       apiKey: config.gemini.apiKey,
     });
-    this.defaultModel = 'gemini-2.5-flash';
+    this.defaultModel = 'gemini-3-pro-preview';
   }
 
   /**

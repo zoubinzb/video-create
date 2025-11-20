@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import config from '../config/config.js';
-import aliyunClient from '../utils/aliyun-client.js';
-import { batchConcurrent } from '../utils/utils.js';
+import config from '../../config/config.js';
+import aliyunClient from '../../utils/aliyun-client.js';
+import { batchConcurrent } from '../../utils/utils.js';
 
 class VideoGeneratorAliyunAgent {
   // 创建素材数据结构

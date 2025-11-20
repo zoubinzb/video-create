@@ -10,7 +10,7 @@ import keyframeGenerator from './agents/gemini/keyframe-generator.js';
 import musicStoryboardGeneratorDoubao from './agents/doubao/music-storyboard-generator-doubao.js';
 import keyframeGeneratorJimeng from './agents/jimeng/keyframe-generator-jimeng.js';
 import videoGenerator from './agents/gemini/video-generator.js';
-import videoGeneratorAliyun from './agents/video-generator-aliyun.js';
+import videoGeneratorAliyun from './agents/aliyun/video-generator-aliyun.js';
 import videoGeneratorImageToVideo from './agents/gemini/video-generator-image-to-video.js';
 import videoComposer from './agents/video-composer.js';
 
@@ -88,7 +88,7 @@ const MUSIC_ANALYSIS_MODE_AI = {
   GEMINI: 'gemini',
   DOUBAO: 'doubao',
 };
-const MUSIC_ANALYSIS_MODE_DEFAULT = MUSIC_ANALYSIS_MODE_AI.GEMINI;
+
 
 
 // 关键帧生成模式常量定义
@@ -96,7 +96,6 @@ const KEYFRAME_GENERATION_MODE_AI = {
   GEMINI: 'gemini',
   JIMENG: 'jimeng',
 };
-const KEYFRAME_GENERATION_MODE_DEFAULT = KEYFRAME_GENERATION_MODE_AI.GEMINI;
 
 // 视频生成模式常量定义
 const VIDEO_GENERATION_MODE_AI = {
@@ -104,7 +103,13 @@ const VIDEO_GENERATION_MODE_AI = {
   GEMINI_IMAGE_TO_VIDEO: 'gemini_image_to_video', // Gemini Veo 图生视频模式
   ALIYUN: 'aliyun', // 阿里万象首尾帧率视频模式
 };
-const VIDEO_GENERATION_MODE_DEFAULT = VIDEO_GENERATION_MODE_AI.GEMINI_IMAGE_TO_VIDEO;
+// const MUSIC_ANALYSIS_MODE_DEFAULT = MUSIC_ANALYSIS_MODE_AI.GEMINI;
+// const KEYFRAME_GENERATION_MODE_DEFAULT = KEYFRAME_GENERATION_MODE_AI.GEMINI;
+// const VIDEO_GENERATION_MODE_DEFAULT = VIDEO_GENERATION_MODE_AI.GEMINI_IMAGE_TO_VIDEO;
+
+const MUSIC_ANALYSIS_MODE_DEFAULT = '';
+const KEYFRAME_GENERATION_MODE_DEFAULT = '';
+const VIDEO_GENERATION_MODE_DEFAULT = '';
 
 /**
  * 主工作流
@@ -192,7 +197,8 @@ async function main() {
     console.log(`   关键帧: ${keyframeData.keyframes?.length || 0} 个镜头，共 ${(keyframeData.keyframes?.length || 0) * 2} 个关键帧（从目录加载）\n`);
 
   
-
+    // Agent 5/6: 视频生成器
+    let materials;
     switch (VIDEO_GENERATION_MODE_DEFAULT) {
       case VIDEO_GENERATION_MODE_AI.GEMINI_FIRST_LAST:
         materials = await videoGenerator.generate(keyframeData);
@@ -204,7 +210,6 @@ async function main() {
         materials = await videoGeneratorAliyun.generate(keyframeData);
         break;
     }
-    console.log(`   视频素材: ${materials.materials?.length || 0} 个\n`);
 
     
     // 阶段三：视频合成与输出
