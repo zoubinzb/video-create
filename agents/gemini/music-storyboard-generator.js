@@ -1,12 +1,11 @@
-import doubaoClient from '../utils/doubao-client.js';
-import geminiClient from '../utils/gemini-client.js';
-import audioUtils from '../utils/audio-utils.js';
+import geminiClient from '../../utils/gemini-client.js';
+import audioUtils from '../../utils/audio-utils.js';
 import path from 'path';
 
 const SHOT_DURATION = 8.0; // 固定每个镜头8秒
 
 /**
- * Agent 1: 音乐分析与分镜生成器（豆包版本）
+ * Agent 1: 音乐分析与分镜生成器
  * 分析音乐，生成视觉风格、颜色方案、视觉元素建议、故事板要求等
  * 返回 JSON 格式，包含音乐分析、视觉概念和故事板
  * {
@@ -19,7 +18,7 @@ const SHOT_DURATION = 8.0; // 固定每个镜头8秒
  *   }
  * }
  */
-class MusicStoryboardGeneratorAgentDoubao {
+class MusicStoryboardGeneratorAgent {
   // 构建AI提示词
   _buildPrompt(videoDuration, lyricsText) {
     const shotsNeeded = Math.ceil(videoDuration / SHOT_DURATION);
@@ -216,78 +215,9 @@ Please return in JSON format, ensuring correct format:
     storyboard.totalDuration = videoDuration;
   }
 
-  // 构建基于音乐分析结果的分镜生成提示词
-  _buildStoryboardPrompt(videoDuration, musicAnalysis, visualConcept, lyricsText) {
-    const shotsNeeded = Math.ceil(videoDuration / SHOT_DURATION);
-    return `You are a professional music video producer. Based on the following music analysis, generate a complete storyboard.
-
-${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}**Music Analysis Results:**
-${JSON.stringify(musicAnalysis, null, 2)}
-
-**Visual Concept:**
-${JSON.stringify(visualConcept, null, 2)}
-
-**Storyboard Generation Requirements:**
-1. Total video duration must be exactly ${videoDuration.toFixed(2)} seconds
-2. **Each shot is fixed at ${SHOT_DURATION} seconds** (the last shot may be less than ${SHOT_DURATION} seconds, based on total video duration)
-3. Shot count calculation: ${shotsNeeded} shots are needed
-4. **CRITICAL: Beat Point Integration**:
-   - Use the beat points from musicAnalysis.beatPoints to create shots
-   - For each shot, check which beat points fall within that shot's time range
-   - If a beat point falls within a shot's time range, set that shot's "beatPoint" field to the beat point's time (in seconds)
-   - The "syncPoint" field should describe how the shot syncs with music, referencing the beat points
-   - Example: If shot 1 is 0.00-8.00s and beat points are at 2.5s, 4.0s, 6.5s, then shot 1's beatPoint should be set to one of these (preferably the first or most prominent), and syncPoint should mention "syncs with beats at 2.5s, 4.0s, 6.5s"
-   - The action and camera movement should be designed to emphasize or change at these beat points
-5. Each shot must include:
-   - Timecode (precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00, ...)
-   - Framing (wide shot/medium shot/close-up/extreme close-up)
-   - Composition description
-   - Lighting description (cool tone/warm tone/high contrast, etc.)
-   - Camera movement (push/pull/pan/track/static)
-   - Action description (should be designed to sync with beat points in this shot)
-   - Sync point with music (must explicitly mention beat point positions and how the shot syncs with them)
-   - beatPoint: The time (in seconds) of the most prominent beat point within this shot's time range (if any)
-   - Transition type (fade in/fade out/cut/wipe, etc.)
-   - Detailed prompt for image/video generation (should mention beat synchronization)
-6. **Key Requirements**:
-   - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
-   - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
-   - Visual style and colors must be consistent with the provided visualConcept
-   - **Each shot MUST reference the beat points within its time range in the syncPoint and beatPoint fields**
-
-Please return ONLY the storyboard JSON object in the following format:
-{
-  "storyboard": {
-    "shots": [
-      {
-        "shotNumber": shot number (number),
-        "timeRange": "0.00-${SHOT_DURATION}.00" (each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00...),
-        "startTime": 0.00 (number, precise to 2 decimal places, each shot spaced ${SHOT_DURATION} seconds apart),
-        "endTime": ${SHOT_DURATION}.00 (number, precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, except the last shot),
-        "framing": "framing (wide shot/medium shot/close-up/extreme close-up)",
-        "composition": "composition description",
-        "lighting": "lighting description (cool tone/warm tone/high contrast, etc.)",
-        "movement": "camera movement (push/pull/pan/track/static)",
-        "action": "action description (should be designed to sync with beat points in this shot)",
-        "syncPoint": "sync point description with music - MUST explicitly mention which beat points (from musicAnalysis.beatPoints) fall within this shot's time range and how the shot syncs with them. Example: 'Syncs with beats at 2.5s, 4.0s, 6.5s - action emphasizes at these moments'",
-        "beatPoint": the time (in seconds) of the most prominent beat point within this shot's time range, taken from musicAnalysis.beatPoints. If multiple beat points exist in this shot, choose the most prominent one. If no beat point falls in this shot, set to null,
-        "transition": {
-          "type": "transition type (fade in/fade out/cut/wipe, etc.)",
-          "duration": transition duration (seconds, number)
-        },
-        "prompt": "detailed prompt for image/video generation"
-      }
-    ],
-    "totalDuration": ${videoDuration.toFixed(2)} (number, must be exactly equal to audio duration),
-    "notes": "storyboard notes and considerations"
-  }
-}`;
-  }
-
   // 生成分镜脚本
   async generate(audioPath, lyricsText = null) {
-    console.log('🎬 Agent 1 (Gemini+豆包): 音乐分析与分镜生成器 - 开始生成...');
-    console.log('   📝 使用 Gemini 分析音乐，豆包生成分镜脚本\n');
+    console.log('🎬 Agent 1: 音乐分析与分镜生成器 - 开始生成...');
 
     try {
       // 获取音频时长
@@ -295,69 +225,21 @@ Please return ONLY the storyboard JSON object in the following format:
       const videoDuration = audioInfo.duration || 30;
       console.log(`   📊 音频时长: ${videoDuration.toFixed(2)} 秒`);
 
-      // 步骤1: 使用 Gemini 分析音乐
-      console.log('   🎵 步骤1: 使用 Gemini 分析音乐...');
-      const analysisPrompt = this._buildPrompt(videoDuration, lyricsText);
-      
-      let musicAnalysisResult;
+      const prompt = this._buildPrompt(videoDuration, lyricsText);
+
+      // 尝试音频分析，失败则回退到文本分析
+      let result;
       try {
-        musicAnalysisResult = await geminiClient.generateJSONWithAudio(analysisPrompt, audioPath);
-        console.log('   ✅ Gemini 音乐分析完成');
+        result = await geminiClient.generateJSONWithAudio(prompt, audioPath);
       } catch (error) {
-        console.warn('   ⚠️  Gemini 音频分析失败，使用文本模式');
+        console.warn('   ⚠️  音频分析失败，使用文本模式');
         const fileName = path.basename(audioPath, path.extname(audioPath));
-        const fallbackPrompt = `You are a professional music video producer. Please analyze the following music:\n\n${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}Filename: ${fileName}\n\n${analysisPrompt}`;
-        musicAnalysisResult = await geminiClient.generateJSON(fallbackPrompt);
+        const fallbackPrompt = `You are a professional music video producer. Please analyze the following music and generate a storyboard:\n\n${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}Filename: ${fileName}\n\n${prompt}`;
+        result = await geminiClient.generateJSON(fallbackPrompt);
       }
 
-      const parsedAnalysis = this._parseResult(musicAnalysisResult);
-      const musicAnalysis = parsedAnalysis.musicAnalysis;
-      const visualConcept = parsedAnalysis.visualConcept;
-
-      if (!musicAnalysis || !visualConcept) {
-        throw new Error('Gemini 音乐分析结果不完整，缺少 musicAnalysis 或 visualConcept');
-      }
-
-      console.log(`   📊 音乐分析结果:`);
-      console.log(`      - 主要情绪: ${musicAnalysis.emotion?.primary || 'N/A'}`);
-      console.log(`      - BPM: ${musicAnalysis.rhythm?.bpm || 'N/A'}`);
-      console.log(`      - 节拍点数量: ${musicAnalysis.beatPoints?.length || 0}\n`);
-
-      // 步骤2: 使用豆包生成分镜脚本
-      console.log('   🎬 步骤2: 使用豆包生成分镜脚本...');
-      const storyboardPrompt = this._buildStoryboardPrompt(videoDuration, musicAnalysis, visualConcept, lyricsText);
-      
-      let storyboardResult;
-      try {
-        storyboardResult = await doubaoClient.generateJSON(storyboardPrompt);
-        console.log('   ✅ 豆包分镜脚本生成完成');
-      } catch (error) {
-        console.error('   ❌ 豆包分镜生成失败:', error.message);
-        throw error;
-      }
-
-      const parsedStoryboard = this._parseResult(storyboardResult);
-      
-      // 如果返回的是完整的 storyboard 对象，提取 storyboard 字段
-      let storyboard = parsedStoryboard.storyboard || parsedStoryboard;
-      
-      // 如果返回的是包含 storyboard 的对象，提取它
-      if (storyboard && typeof storyboard === 'object' && 'storyboard' in storyboard) {
-        storyboard = storyboard.storyboard;
-      }
-      
-      // 如果还是没有找到，尝试直接使用解析结果
-      if (!storyboard || !storyboard.shots) {
-        // 尝试查找 shots 字段
-        if (parsedStoryboard.shots) {
-          storyboard = parsedStoryboard;
-        } else {
-          console.error('豆包返回的完整结果:', JSON.stringify(parsedStoryboard, null, 2).substring(0, 1000));
-          throw new Error('豆包返回的分镜脚本格式不正确，未找到 storyboard.shots 字段');
-        }
-      }
-
-      this._correctShotTimings(storyboard, videoDuration);
+      const parsedResult = this._parseResult(result);
+      this._correctShotTimings(parsedResult.storyboard, videoDuration);
 
       // 获取音频详细信息（可选）
       const [audioInfoDetail, bpmInfo] = await Promise.allSettled([
@@ -365,16 +247,16 @@ Please return ONLY the storyboard JSON object in the following format:
         audioUtils.detectBPM(audioPath)
       ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
 
-      console.log(`   ✅ 生成完成：${storyboard.shots?.length || 0} 个镜头\n`);
+      console.log(`   ✅ 生成完成：${parsedResult.storyboard?.shots?.length || 0} 个镜头\n`);
 
       return {
         audioInfo: audioInfoDetail || { duration: videoDuration, note: '未获取音频技术信息' },
         bpmInfo: bpmInfo || { note: '未检测BPM' },
-        musicAnalysis: musicAnalysis,
-        visualConcept: visualConcept,
-        storyboard: storyboard,
+        musicAnalysis: parsedResult.musicAnalysis,
+        visualConcept: parsedResult.visualConcept,
+        storyboard: parsedResult.storyboard,
         timestamp: new Date().toISOString(),
-        analysisMethod: 'gemini-analysis-doubao-storyboard'
+        analysisMethod: 'gemini-direct'
       };
     } catch (error) {
       console.error('❌ 音乐分析与分镜生成失败:', error);
@@ -383,5 +265,5 @@ Please return ONLY the storyboard JSON object in the following format:
   }
 }
 
-export default new MusicStoryboardGeneratorAgentDoubao();
+export default new MusicStoryboardGeneratorAgent();
 

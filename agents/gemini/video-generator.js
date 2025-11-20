@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import config from '../config/config.js';
-import geminiClient from '../utils/gemini-client.js';
-import { batchConcurrent } from '../utils/utils.js';
+import config from '../../config/config.js';
+import geminiClient from '../../utils/gemini-client.js';
+import { batchConcurrent } from '../../utils/utils.js';
 
 const VIDEO_STYLE = 'Cocomelon style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere, smooth motion from keyframe A to keyframe B, high quality, consistent style and visual continuity';
 

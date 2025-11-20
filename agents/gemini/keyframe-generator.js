@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import config from '../config/config.js';
-import imageGenerator from '../utils/image-generator.js';
-import { batchConcurrent } from '../utils/utils.js';
+import config from '../../config/config.js';
+import imageGenerator from '../../utils/image-generator.js';
+import { batchConcurrent } from '../../utils/utils.js';
 
 const IMAGE_CONFIG = {
   width: 1920,   // 1080p 宽度

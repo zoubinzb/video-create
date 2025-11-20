@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import config from '../config/config.js';
-import jimengClient from '../utils/jimeng-client.js';
+import config from '../../config/config.js';
+import jimengClient from '../../utils/jimeng-client.js';
 
 const IMAGE_CONFIG = {
   width: 1920,

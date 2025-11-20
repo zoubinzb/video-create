@@ -5,13 +5,13 @@ import { execSync } from 'child_process';
 import config from './config/config.js';
 import { findAudioFile, findLyricsFile } from './utils/utils.js';
 // 导入所有 Agents
-import musicStoryboardGenerator from './agents/music-storyboard-generator.js';
-import keyframeGenerator from './agents/keyframe-generator.js';
-import musicStoryboardGeneratorDoubao from './agents/music-storyboard-generator-doubao.js';
-import keyframeGeneratorJimeng from './agents/keyframe-generator-jimeng.js';
-import videoGenerator from './agents/video-generator.js';
+import musicStoryboardGenerator from './agents/gemini/music-storyboard-generator.js';
+import keyframeGenerator from './agents/gemini/keyframe-generator.js';
+import musicStoryboardGeneratorDoubao from './agents/doubao/music-storyboard-generator-doubao.js';
+import keyframeGeneratorJimeng from './agents/jimeng/keyframe-generator-jimeng.js';
+import videoGenerator from './agents/gemini/video-generator.js';
 import videoGeneratorAliyun from './agents/video-generator-aliyun.js';
-import videoGeneratorImageToVideo from './agents/video-generator-image-to-video.js';
+import videoGeneratorImageToVideo from './agents/gemini/video-generator-image-to-video.js';
 import videoComposer from './agents/video-composer.js';
 
 
