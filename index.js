@@ -103,9 +103,10 @@ const VIDEO_GENERATION_MODE_AI = {
   GEMINI_IMAGE_TO_VIDEO: 'gemini_image_to_video', // Gemini Veo 图生视频模式
   ALIYUN: 'aliyun', // 阿里万象首尾帧率视频模式
 };
-const MUSIC_ANALYSIS_MODE_DEFAULT = MUSIC_ANALYSIS_MODE_AI.GEMINI;
-const KEYFRAME_GENERATION_MODE_DEFAULT = KEYFRAME_GENERATION_MODE_AI.GEMINI;
+const MUSIC_ANALYSIS_MODE_DEFAULT = '';
+const KEYFRAME_GENERATION_MODE_DEFAULT = '';
 const VIDEO_GENERATION_MODE_DEFAULT = VIDEO_GENERATION_MODE_AI.GEMINI_IMAGE_TO_VIDEO;
+
 
 
 /**
@@ -160,7 +161,9 @@ async function main() {
     }
     const agent1ResultPath =  path.join(config.paths.output, `agent1_storyboard.json`);
     // 将storyboardData存入 agent1ResultPath
-    fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
+    if(storyboardData){
+      fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
+    }
 
 
     { // 使用的数据从缓存导入，便于各agent 分离

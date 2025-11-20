@@ -3,6 +3,7 @@ import path from 'path';
 import config from '../../config/config.js';
 import geminiClient from '../../utils/gemini-client.js';
 import { batchConcurrent } from '../../utils/utils.js';
+import characterLibrary from '../../utils/character-library.js';
 
 const VIDEO_STYLE = 'Cocomelon style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere, smooth motion from keyframe, high quality, consistent style and visual continuity';
 
@@ -32,12 +33,30 @@ class VideoGeneratorImageToVideoAgent {
     return beatPoints.filter(beat => beat >= shotStart && beat < shotEnd);
   }
 
+  // 为镜头选择角色
+  _selectCharacterForShot(shot, storyboard) {
+    // 如果 shot 中已经有角色信息，使用它
+    if (shot.characterName) {
+      const character = characterLibrary.getCharacterByName(shot.characterName);
+      if (character) {
+        return character;
+      }
+    }
+    
+    // 根据场景描述智能选择角色
+    const sceneDescription = shot.videoPrompt || shot.action || '';
+    return characterLibrary.selectCharacterForScene(sceneDescription, shot.shotNumber);
+  }
+
   // 构建视频提示词（图生视频模式）
   _buildPrompt(shot, keyframeA, storyboard) {
     const duration = shot.endTime - shot.startTime;
     const beatPointsInRange = this._getBeatPointsInRange(shot, storyboard?.musicAnalysis);
     const rhythm = storyboard?.musicAnalysis?.rhythm;
     const concept = storyboard?.visualConcept?.visualConcept;
+    
+    // 选择角色
+    const character = this._selectCharacterForShot(shot, storyboard);
     
     // 构建节拍同步描述
     const buildBeatSyncDescription = () => {
@@ -74,9 +93,38 @@ class VideoGeneratorImageToVideoAgent {
       // 使用提供的 videoPrompt 作为基础（描述动态动作）
       shot.videoPrompt,
       
+      // 添加角色信息 - 严格禁止修改角色外观
+      `CRITICAL CHARACTER CONSISTENCY: The character in this video must be "${character.name}". Character description: ${character.desc}`,
+      `REFERENCE IMAGES PROVIDED:`,
+      `- Keyframe image: Shows the scene and character in the initial state`,
+      `- Character reference image: Shows the exact character design from the character library (${character.name})`,
+      `- You MUST use BOTH reference images to ensure character consistency`,
+      `- The character reference image shows the EXACT character design you must use - this is the authoritative source for character appearance`,
+      `ABSOLUTELY FORBIDDEN during animation:`,
+      `- DO NOT add, remove, or modify ANY character features (hair, accessories, clothing, backpacks, etc.)`,
+      `- DO NOT change the character's colors, proportions, design elements, or visual details`,
+      `- DO NOT modify facial features, body shape, or any appearance aspects`,
+      `- DO NOT deviate from the character reference image in ANY way`,
+      `MANDATORY REQUIREMENTS:`,
+      `- The character's appearance must match the character reference image EXACTLY`,
+      `- Use the character reference image as the authoritative source for character design`,
+      `- The character's appearance, design, colors, accessories, clothing, and ALL details must remain EXACTLY the same as shown in the character reference image throughout the entire video`,
+      `- Maintain the exact same character size, proportions, and visual appearance from start to end`,
+      `- The character must look identical to the character reference image in every frame`,
+      `- Copy the character design from the character reference image pixel-perfectly and maintain it throughout the animation`,
+      
+      // 场景大小一致性
+      `CRITICAL SCENE CONSISTENCY:`,
+      `- Maintain the exact same scene scale, character size, and composition throughout the entire video`,
+      `- The character's size relative to the scene must remain constant from start to end`,
+      `- Keep the same camera distance and framing as shown in the keyframe image`,
+      `- Do not zoom in or out - maintain consistent scene proportions`,
+      `- The background and scene elements must maintain the same scale throughout`,
+      
       // 添加必要的补充信息
       `Generate video from keyframe image`,
       `Animate the scene smoothly based on the keyframe image`,
+      `Maintain visual consistency: character appearance, scene scale, and composition must remain constant`,
       
       // 时间和同步
       `duration: ${duration} seconds`,
@@ -104,12 +152,27 @@ class VideoGeneratorImageToVideoAgent {
     return parts.join(', ');
   }
 
-  // 准备关键帧图像路径（只使用首帧）
-  _prepareReferenceImage(keyframeA) {
+  // 准备参考图像（关键帧 + 角色库参考图片）
+  _prepareReferenceImages(keyframeA, shot, storyboard) {
+    const referenceImages = [];
+    
+    // 1. 添加关键帧图像（首帧）
     if (keyframeA?.path && fs.existsSync(keyframeA.path)) {
-      return [keyframeA.path];
+      referenceImages.push(keyframeA.path);
     }
-    return [];
+    
+    // 2. 添加角色库中的角色参考图片
+    const character = this._selectCharacterForShot(shot, storyboard);
+    const characterImagePath = characterLibrary.getCharacterImagePath(character.name);
+    
+    if (characterImagePath && fs.existsSync(characterImagePath)) {
+      referenceImages.push(characterImagePath);
+      console.log(`    🎭 添加角色参考图片: ${character.name} (${path.basename(characterImagePath)})`);
+    } else {
+      console.warn(`    ⚠️  角色 "${character.name}" 的图片不存在: ${characterImagePath}`);
+    }
+    
+    return referenceImages;
   }
 
   // 生成单个视频（图生视频模式）
@@ -141,10 +204,12 @@ class VideoGeneratorImageToVideoAgent {
       console.log(`\n    📝 完整提示词:`);
       console.log(`    ${videoPrompt}\n`);
       
-      // 只使用首帧作为参考图像（图生视频模式）
-      const referenceImages = this._prepareReferenceImage(keyframeA);
+      // 准备参考图像：关键帧 + 角色库参考图片
+      const referenceImages = this._prepareReferenceImages(keyframeA, shot, keyframeData.storyboard);
       
-      // 调用 Gemini Veo 图生视频 API（只传一个图像，不使用 lastFrame）
+      console.log(`    📸 使用 ${referenceImages.length} 个参考图片: 关键帧 + 角色参考图片`);
+      
+      // 调用 Gemini Veo 图生视频 API（传入关键帧和角色参考图片）
       await geminiClient.generateVideo(videoPrompt, videoPath, 'veo-3.1-generate-preview', referenceImages);
       
       material.path = videoPath;

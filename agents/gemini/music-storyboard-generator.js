@@ -1,6 +1,7 @@
 import geminiClient from '../../utils/gemini-client.js';
 import audioUtils from '../../utils/audio-utils.js';
 import path from 'path';
+import characterLibrary from '../../utils/character-library.js';
 
 const SHOT_DURATION = 8.0; // 固定每个镜头8秒
 
@@ -19,10 +20,77 @@ const SHOT_DURATION = 8.0; // 固定每个镜头8秒
  * }
  */
 class MusicStoryboardGeneratorAgent {
+  // 构建角色库描述
+  _buildCharacterLibraryDescription() {
+    const characters = characterLibrary.getAllCharacters();
+    const characterList = characters.map((char, index) => 
+      `${index + 1}. ${char.name}: ${char.desc}`
+    ).join('\n');
+    return `**Available Characters (Character Library):**
+You MUST use ONLY these predefined characters from the character library. Each shot should specify which character appears using the "characterName" field.
+
+Available characters:
+${characterList}
+
+CRITICAL CHARACTER CONSISTENCY RULES:
+1. **Character Framework**: This is a multi-scene narrative video. You should use:
+   - 1-2 main characters (protagonists who drive the story)
+   - 2-3 secondary characters (supporting roles, scene-specific characters, or characters that appear in specific narrative moments)
+   - Total: 3-5 characters maximum
+
+2. **Story-Driven Character Assignment** (CRITICAL):
+   - **DO NOT** mechanically distribute characters by percentage or shot count
+   - **DO** assign characters based on narrative logic, story progression, and scene requirements
+   - Analyze the music content, lyrics, emotional arc, and story structure to determine which character fits each scene
+   - Each character should appear when their presence serves the story, scene context, or narrative purpose
+
+3. **Character Selection Based on Narrative**:
+   - **Main characters (1-2)**: Choose based on who best represents the story's protagonist(s), central theme, or emotional journey. They will naturally appear more frequently as they drive the narrative forward.
+   - **Secondary characters (2-3)**: Introduce when:
+     * A specific scene requires a particular character (e.g., a scene about colors might feature a colorful character)
+     * The narrative calls for interaction, contrast, or supporting roles
+     * The music structure or lyrics suggest a character change
+     * A scene's theme, mood, or visual concept matches a character's traits
+
+4. **Scene-Based Character Logic**:
+   - Each shot represents a scene in the narrative
+   - Assign characters based on:
+     * What the scene is about (theme, subject matter)
+     * What the lyrics describe at that moment
+     * The emotional tone and mood of that scene
+     * The visual concept and composition needs
+     * The narrative progression and story flow
+   - Characters should appear naturally where they belong in the story, not forced into scenes
+
+5. **Character Continuity**:
+   - Maintain character consistency within story arcs or scene sequences
+   - When the narrative transitions (e.g., verse to chorus, scene change), character changes should feel natural and story-driven
+   - Avoid random character switching - each change should serve the narrative
+
+6. **Each shot MUST include**: A "characterName" field specifying which character appears in that scene. The character choice should be justified by the scene's narrative purpose, theme, or visual requirements.
+
+EXAMPLE NARRATIVE APPROACH:
+- If the story is about learning colors: "蓝蓝熊" might appear in blue-themed scenes, "桃桃熊" in pink-themed scenes, etc.
+- If the story follows a journey: Main character appears throughout, secondary characters appear at specific locations or moments
+- If the story has multiple perspectives: Different characters might appear in different verses, representing different viewpoints
+- Character distribution emerges naturally from the story, not from mechanical percentage allocation.`;
+  }
+
+  // 获取角色名称列表（用于 JSON 格式说明）
+  _getCharacterNamesList() {
+    const characters = characterLibrary.getAllCharacters();
+    return characters.map(char => char.name).join(', ');
+  }
+
   // 构建AI提示词
   _buildPrompt(videoDuration, lyricsText) {
     const shotsNeeded = Math.ceil(videoDuration / SHOT_DURATION);
+    const characterLibraryDesc = this._buildCharacterLibraryDescription();
+    const characterNamesList = this._getCharacterNamesList();
     return `You are a professional music video producer. Please carefully listen to and analyze this music, then generate a complete storyboard directly.
+
+${characterLibraryDesc}
+
 
 ${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}**Task Requirements:**
 You will create a Cocomelon-style animated music video with the following characteristics:
@@ -67,6 +135,7 @@ Based on music analysis, generate visual concepts that MUST align with Cocomelon
    - The action and camera movement should be designed to emphasize or change at these beat points
 5. Each shot must include:
    - Timecode (precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00, ...)
+   - characterName: The name of the character from the character library that appears in this shot (MUST be one of the characters listed above)
    - Framing (wide shot/medium shot/close-up/extreme close-up)
    - Composition description
    - Lighting description (cool tone/warm tone/high contrast, etc.)
@@ -75,14 +144,37 @@ Based on music analysis, generate visual concepts that MUST align with Cocomelon
    - Sync point with music (must explicitly mention beat point positions and how the shot syncs with them)
    - beatPoint: The time (in seconds) of the most prominent beat point within this shot's time range (if any)
    - Transition type (fade in/fade out/cut/wipe, etc.)
-   - keyframePrompt: Detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style.
-   - videoPrompt: Detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen. Must mention beat synchronization and be in Cocomelon animation style.
+   - keyframePrompt: Detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must mention the character name and describe the character according to the character library description. Must be in Cocomelon animation style.
+     **SCENE RESTRICTIONS**: 
+     - DO NOT create abstract, stylized, or overly artistic scenes
+     - DO NOT use abstract patterns, geometric shapes as main elements, or surreal visual effects
+     - DO create concrete, recognizable, child-friendly scenes (e.g., classroom, playground, home, garden, park, etc.)
+     - Scenes must be simple, clear, and educational - suitable for young children
+     - Backgrounds should be simple and recognizable, not abstract or stylized
+     - Avoid artistic interpretations, abstract concepts, or complex visual metaphors
+   - videoPrompt: Detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen. Must mention beat synchronization and be in Cocomelon animation style. Must maintain consistency with the character from the character library.
+     **SCENE RESTRICTIONS**: 
+     - DO NOT create abstract, stylized, or overly artistic animations
+     - DO NOT use abstract visual effects, particle effects, or surreal transformations
+     - DO create simple, clear, educational animations that children can understand
+     - Actions should be concrete and recognizable (e.g., walking, jumping, playing, learning, singing, etc.)
+     - Avoid abstract movements, artistic interpretations, or complex visual metaphors
 6. **Key Requirements**:
    - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
    - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
    - Visual style and colors must be consistent with Cocomelon animation style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere
    - All shots must maintain Cocomelon style consistency throughout the video
    - **Each shot MUST reference the beat points within its time range in the syncPoint and beatPoint fields**
+   - **CRITICAL: Story-Driven Character Assignment**: This is a multi-scene narrative video. Assign characters based on narrative logic, scene requirements, and story progression - NOT by mechanical percentage distribution. Use 1-2 main characters (protagonists) and 2-3 secondary characters (supporting/situation-specific roles), maximum 3-5 total characters. Each character should appear when their presence serves the story, scene context, or narrative purpose. Maintain character continuity within story arcs. Character distribution should emerge naturally from the narrative, not from forced percentages.
+   - **CRITICAL: Scene Style Restrictions**: 
+     - DO NOT create abstract, stylized, or overly artistic scenes
+     - DO NOT use abstract patterns, geometric shapes as main elements, surreal visual effects, or artistic interpretations
+     - DO create concrete, recognizable, child-friendly scenes (e.g., classroom, playground, home, garden, park, kitchen, bedroom, outdoor spaces, etc.)
+     - All scenes must be simple, clear, educational, and suitable for young children
+     - Backgrounds must be simple and recognizable - avoid abstract or stylized backgrounds
+     - Actions and animations must be concrete and understandable (walking, jumping, playing, learning, singing, dancing, etc.)
+     - Avoid abstract movements, particle effects, surreal transformations, or complex visual metaphors
+     - Keep scenes grounded in reality and educational content, maintaining Cocomelon's simple and clear visual style
 
 Please return in JSON format, ensuring correct format:
 {
@@ -144,6 +236,7 @@ Please return in JSON format, ensuring correct format:
         "timeRange": "0.00-${SHOT_DURATION}.00" (each shot fixed at ${SHOT_DURATION} seconds, format: 0.00-${SHOT_DURATION}.00, ${SHOT_DURATION}.00-${SHOT_DURATION * 2}.00...),
         "startTime": 0.00 (number, precise to 2 decimal places, each shot spaced ${SHOT_DURATION} seconds apart),
         "endTime": ${SHOT_DURATION}.00 (number, precise to 2 decimal places, each shot fixed at ${SHOT_DURATION} seconds, except the last shot),
+        "characterName": "character name from character library (MUST be one of: ${characterNamesList})",
         "framing": "framing (wide shot/medium shot/close-up/extreme close-up)",
         "composition": "composition description",
         "lighting": "lighting description (cool tone/warm tone/high contrast, etc.)",
@@ -155,8 +248,8 @@ Please return in JSON format, ensuring correct format:
           "type": "transition type (fade in/fade out/cut/wipe, etc.)",
           "duration": transition duration (seconds, number)
         },
-        "keyframePrompt": "detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style with bright vibrant colors, simple cute character design, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds",
-        "videoPrompt": "detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen, including beat synchronization. Must be in Cocomelon animation style with smooth 3D animation, educational and entertaining, playful and cheerful atmosphere"
+        "keyframePrompt": "detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style with bright vibrant colors, simple cute character design, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds. IMPORTANT: Create concrete, recognizable scenes (classroom, playground, home, garden, park, kitchen, bedroom, outdoor spaces, etc.) - DO NOT create abstract, stylized, or overly artistic scenes. Avoid abstract patterns, geometric shapes as main elements, or surreal visual effects.",
+        "videoPrompt": "detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen, including beat synchronization. Must be in Cocomelon animation style with smooth 3D animation, educational and entertaining, playful and cheerful atmosphere. IMPORTANT: Create simple, clear, educational animations (walking, jumping, playing, learning, singing, dancing, etc.) - DO NOT create abstract, stylized animations, particle effects, or surreal transformations. Actions must be concrete and understandable for young children."
       }
     ],
     "totalDuration": ${videoDuration.toFixed(2)} (number, must be exactly equal to audio duration),
