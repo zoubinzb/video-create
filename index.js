@@ -7,7 +7,6 @@ import { findAudioFile, findLyricsFile } from './utils/utils.js';
 // 导入所有 Agents
 import musicStoryboardGenerator from './agents/music-storyboard-generator.js';
 import keyframeGenerator from './agents/keyframe-generator.js';
-import keyframeGeneratorV2 from './agents/keyframe-generator-v2.js';
 import musicStoryboardGeneratorDoubao from './agents/music-storyboard-generator-doubao.js';
 import keyframeGeneratorJimeng from './agents/keyframe-generator-jimeng.js';
 import videoGenerator from './agents/video-generator.js';
