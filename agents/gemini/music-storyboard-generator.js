@@ -25,10 +25,13 @@ class MusicStoryboardGeneratorAgent {
     return `You are a professional music video producer. Please carefully listen to and analyze this music, then generate a complete storyboard directly.
 
 ${lyricsText ? `Lyrics:\n${lyricsText}\n\n` : ''}**Task Requirements:**
+You will create a Cocomelon-style animated music video with the following characteristics:
+- Cocomelon style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere, smooth motion from keyframe, high quality, consistent style and visual continuity
+
 1. Analyze the music's emotion, rhythm, theme, structure, and climax
 2. Identify beat points in the music (rhythm changes, beat accents, climax, etc.)
-3. Generate visual style and color scheme based on music analysis
-4. Generate a complete storyboard directly. The total video duration must be exactly ${videoDuration.toFixed(2)} seconds
+3. Generate visual style and color scheme based on music analysis, ensuring it aligns with Cocomelon animation style
+4. Generate a complete storyboard directly for a Cocomelon-style animated video. The total video duration must be exactly ${videoDuration.toFixed(2)} seconds
 
 **Music Analysis Requirements:**
 Please analyze the following:
@@ -46,10 +49,10 @@ Please analyze the following:
   - The more beat points you identify, the better the video will sync with the music
 
 **Visual Concept Requirements:**
-Based on music analysis, generate:
-- Visual Style: Specific visual style (e.g., cyberpunk, retro, minimalist, abstract, natural, cinematic, etc.)
-- Color Scheme: Primary colors, secondary colors, color mood
-- Visual Element Suggestions: Recommended visual elements (e.g., particles, light effects, abstract graphics, etc.)
+Based on music analysis, generate visual concepts that MUST align with Cocomelon animation style:
+- Visual Style: MUST be Cocomelon style - bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere
+- Color Scheme: Primary colors should be bright and vibrant (typical Cocomelon palette: bright blues, yellows, greens, pinks, oranges), secondary colors, color mood should be cheerful and warm
+- Visual Element Suggestions: Recommended visual elements suitable for Cocomelon style (e.g., simple shapes, friendly characters, educational elements, playful animations, etc.)
 
 **Storyboard Requirements:**
 1. Total video duration must be exactly ${videoDuration.toFixed(2)} seconds
@@ -72,11 +75,13 @@ Based on music analysis, generate:
    - Sync point with music (must explicitly mention beat point positions and how the shot syncs with them)
    - beatPoint: The time (in seconds) of the most prominent beat point within this shot's time range (if any)
    - Transition type (fade in/fade out/cut/wipe, etc.)
-   - Detailed prompt for image/video generation (should mention beat synchronization)
+   - keyframePrompt: Detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style.
+   - videoPrompt: Detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen. Must mention beat synchronization and be in Cocomelon animation style.
 6. **Key Requirements**:
    - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
    - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
-   - Visual style and colors must be consistent with music emotion and theme
+   - Visual style and colors must be consistent with Cocomelon animation style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere
+   - All shots must maintain Cocomelon style consistency throughout the video
    - **Each shot MUST reference the beat points within its time range in the syncPoint and beatPoint fields**
 
 Please return in JSON format, ensuring correct format:
@@ -121,16 +126,16 @@ Please return in JSON format, ensuring correct format:
   },
   "visualConcept": {
     "style": {
-      "name": "style name",
-      "description": "detailed style description",
-      "references": "style reference notes"
+      "name": "Cocomelon animation style",
+      "description": "Cocomelon style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere",
+      "references": "Cocomelon animation style reference notes"
     },
     "colorPalette": {
-      "primary": ["primary color 1", "primary color 2"],
-      "secondary": ["secondary color 1", "secondary color 2"],
-      "mood": "color mood description"
+      "primary": ["bright vibrant colors typical of Cocomelon - bright blues, yellows, greens, pinks, oranges"],
+      "secondary": ["secondary colors that complement the Cocomelon palette"],
+      "mood": "cheerful, warm, playful, and child-friendly color mood"
     },
-    "visualElements": ["recommended element 1", "recommended element 2"]
+    "visualElements": ["simple shapes", "friendly characters", "educational elements", "playful animations", "Cocomelon-style visual elements"]
   },
   "storyboard": {
     "shots": [
@@ -150,7 +155,8 @@ Please return in JSON format, ensuring correct format:
           "type": "transition type (fade in/fade out/cut/wipe, etc.)",
           "duration": transition duration (seconds, number)
         },
-        "prompt": "detailed prompt for image/video generation"
+        "keyframePrompt": "detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style with bright vibrant colors, simple cute character design, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds",
+        "videoPrompt": "detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen, including beat synchronization. Must be in Cocomelon animation style with smooth 3D animation, educational and entertaining, playful and cheerful atmosphere"
       }
     ],
     "totalDuration": ${videoDuration.toFixed(2)} (number, must be exactly equal to audio duration),
@@ -226,7 +232,7 @@ Please return in JSON format, ensuring correct format:
       console.log(`   📊 音频时长: ${videoDuration.toFixed(2)} 秒`);
 
       const prompt = this._buildPrompt(videoDuration, lyricsText);
-
+      console.log(`   🔍 提示词: ${prompt}`);
       // 尝试音频分析，失败则回退到文本分析
       let result;
       try {

@@ -128,38 +128,31 @@ class KeyframeGeneratorAgent {
 
   // 构建关键帧提示词（生成起始帧）
   _buildPrompt(shot, storyboard, { previousShot, nextShot }) {
+    // 必须使用 keyframePrompt，如果没有则抛出错误
+    if (!shot.keyframePrompt) {
+      throw new Error(`镜头 ${shot.shotNumber} 缺少必需的 keyframePrompt 字段`);
+    }
+    
     const concept = storyboard?.visualConcept?.visualConcept;
     const style = concept?.style?.name || '';
     const colors = concept?.colorPalette?.primary?.join(', ') || '';
     
+    // 在提供的提示词基础上添加必要的补充信息
     const parts = [
+      shot.keyframePrompt,
       'IMPORTANT: You must use the exact cartoon character from the reference image provided.',
-      'Cocomelon animation style: bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere.',
-      'Style: soft 3D cartoon, pastel colors, smooth movement, very kid-friendly, warm lighting, no text.',
-      'The scene is bright, soft, colorful, and friendly.',
       'The character\'s appearance, design, colors, and style must be identical to the reference image.',
       'Do not create a new character or modify the character design.',
-      `Start frame (initial keyframe) for shot ${shot.shotNumber}: ${shot.composition}, ${shot.framing}, ${shot.lighting}`,
-      'This is the STARTING state of the shot, showing the initial moment before any action begins',
-      'use the exact same cartoon character from the reference image, maintain character consistency'
+      'This is a STATIC keyframe image showing the INITIAL STATE before any action begins',
+      'cinematic, high quality, detailed, still frame, start keyframe, initial moment'
     ];
-    
-    // 如果有动作描述，强调这是动作的初始状态
-    if (shot.action) {
-      parts.push(`${shot.action} - initial state, action just beginning`);
-    } else {
-      parts.push('scene at its initial state, ready to begin');
-    }
     
     if (style) parts.push(`${style} style`);
     if (colors) parts.push(`${colors} color palette`);
     
-    // 如果有前一个镜头，添加过渡提示（从上一个镜头的结束过渡到当前镜头的开始）
     if (previousShot) {
       parts.push(`visually connected to previous shot (shot ${previousShot.shotNumber}), smooth transition from previous scene`);
     }
-    
-    parts.push('cinematic, high quality, detailed, still frame, start keyframe, initial moment');
     
     return parts.join(', ');
   }

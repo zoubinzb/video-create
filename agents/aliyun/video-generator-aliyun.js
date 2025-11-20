@@ -33,85 +33,74 @@ class VideoGeneratorAliyunAgent {
 
   // 构建视频提示词
   _buildPrompt(shot, keyframeA, keyframeB, storyboard) {
-    const parts = [
-      `从关键帧 A 到关键帧 B 生成视频:`,
-      `起始关键帧 A (镜头 ${shot.shotNumber} 开始): ${keyframeA.prompt}`,
-      keyframeB.nextShotNumber 
-        ? `平滑过渡到关键帧 B (镜头 ${keyframeB.nextShotNumber} 开始): ${keyframeB.prompt}`
-        : `平滑过渡到关键帧 B (镜头 ${shot.shotNumber} 结束): ${keyframeB.prompt}`
-    ];
-
-    const fields = [
-      ['构图', shot.composition],
-      ['取景', shot.framing],
-      ['灯光', shot.lighting],
-      ['镜头运动', shot.movement !== '静止' ? shot.movement : null],
-      ['动作', shot.action],
-      ['转场', shot.transition?.type ? `${shot.transition.type}${shot.transition.duration ? ` (${shot.transition.duration}秒)` : ''}` : null]
-    ];
-
-    fields.forEach(([key, value]) => {
-      if (value) parts.push(`${key}: ${value}`);
-    });
-
+    // 必须使用 videoPrompt，如果没有则抛出错误
+    if (!shot.videoPrompt) {
+      throw new Error(`镜头 ${shot.shotNumber} 缺少必需的 videoPrompt 字段`);
+    }
+    
     const duration = shot.endTime - shot.startTime;
-    parts.push(`时长: ${duration} 秒`);
-    parts.push(`时间范围: ${shot.timeRange} (音乐时间: ${shot.startTime.toFixed(2)}秒 - ${shot.endTime.toFixed(2)}秒)`);
-
-    // 获取这个镜头时间段内的所有卡点
     const beatPointsInRange = this._getBeatPointsInRange(shot, storyboard?.musicAnalysis);
-    
-    // 强调音乐律动同步
-    parts.push(`重要提示: 此视频片段对应音乐时间 ${shot.startTime.toFixed(2)}秒 - ${shot.endTime.toFixed(2)}秒。`);
-    parts.push(`视频动作、运动和节奏必须与音乐节拍和节奏同步。`);
-    
-    if (beatPointsInRange.length > 0) {
-      // 计算相对时间（相对于镜头开始时间）
-      const relativeBeatTimes = beatPointsInRange.map(beat => {
-        const relativeTime = beat - shot.startTime;
-        return { absolute: beat, relative: relativeTime };
-      });
-      
-      const beatTimesAbsolute = relativeBeatTimes.map(b => `${b.absolute.toFixed(2)}秒`).join(', ');
-      const beatTimesRelative = relativeBeatTimes.map(b => `${b.relative.toFixed(2)}秒`).join(', ');
-      
-      parts.push(`此片段中的节拍点 (音乐时间): ${beatTimesAbsolute}`);
-      parts.push(`相对于片段开始的节拍点: ${beatTimesRelative}`);
-      parts.push(`在这些节拍点 (${beatTimesRelative})，动作或镜头运动必须强调或改变以匹配音乐节奏。`);
-      parts.push(`运动应该在这些精确时刻加速、改变方向或产生视觉强调，以与音乐节拍同步。`);
-      parts.push(`视觉节奏必须匹配音乐节奏 - 动作峰值应与节拍点对齐。`);
-    } else if (shot.beatPoint != null) {
-      const relativeBeatTime = shot.beatPoint - shot.startTime;
-      parts.push(`节拍点在此片段 ${relativeBeatTime.toFixed(2)}秒处 (音乐时间: ${shot.beatPoint.toFixed(2)}秒)`);
-      parts.push(`在此节拍点 (${relativeBeatTime.toFixed(2)}秒)，强调动作或改变镜头运动以与音乐节拍同步。`);
-    }
-    
-    if (shot.syncPoint) {
-      parts.push(`同步点: ${shot.syncPoint}`);
-    }
-
-    // 添加音乐节奏信息
     const rhythm = storyboard?.musicAnalysis?.rhythm;
-    if (rhythm) {
-      if (rhythm.bpm) {
-        parts.push(`音乐 BPM: ${rhythm.bpm} - 视频运动节奏应匹配此节拍率`);
-        const beatInterval = 60 / rhythm.bpm;
-        parts.push(`节拍间隔: ${beatInterval.toFixed(2)} 秒 - 运动应遵循此节奏`);
+    
+    // 构建节拍同步描述
+    const buildBeatSyncDescription = () => {
+      if (beatPointsInRange.length > 0) {
+        const relativeBeatTimes = beatPointsInRange.map(beat => ({
+          absolute: beat,
+          relative: beat - shot.startTime
+        }));
+        const beatTimesAbsolute = relativeBeatTimes.map(b => `${b.absolute.toFixed(2)}秒`).join(', ');
+        const beatTimesRelative = relativeBeatTimes.map(b => `${b.relative.toFixed(2)}秒`).join(', ');
+        return [
+          `此片段中的节拍点 (音乐时间): ${beatTimesAbsolute}`,
+          `相对于片段开始的节拍点: ${beatTimesRelative}`,
+          `在这些节拍点 (${beatTimesRelative})，动作或镜头运动必须强调或改变以匹配音乐节奏`,
+          `运动应该在这些精确时刻加速、改变方向或产生视觉强调，以与音乐节拍同步`,
+          `视觉节奏必须匹配音乐节奏 - 动作峰值应与节拍点对齐`
+        ];
+      } else if (shot.beatPoint != null) {
+        const relativeBeatTime = shot.beatPoint - shot.startTime;
+        return [
+          `节拍点在此片段 ${relativeBeatTime.toFixed(2)}秒处 (音乐时间: ${shot.beatPoint.toFixed(2)}秒)`,
+          `在此节拍点 (${relativeBeatTime.toFixed(2)}秒)，强调动作或改变镜头运动以与音乐节拍同步`
+        ];
       }
-      if (rhythm.character) {
-        parts.push(`音乐节奏特征: ${rhythm.character} - 视频运动应反映此节奏风格`);
-      }
-    }
-
-    const concept = storyboard?.visualConcept?.visualConcept;
-    if (concept?.style?.name) parts.push(`风格: ${concept.style.name}`);
-    if (concept?.colorPalette?.primary) parts.push(`配色方案: ${concept.colorPalette.primary.join(', ')}`);
-    if (shot.prompt) parts.push(`镜头提示词: ${shot.prompt}`);
-
-    // Cocomelon 风格要求
-    parts.push(`视觉风格: Cocomelon 动画风格 - 明亮鲜艳的色彩，简单可爱的角色设计，流畅的 3D 动画，适合儿童的视觉风格，圆润友好的角色，清晰的线条，简单的背景，教育性和娱乐性结合，活泼欢快的氛围`);
-    parts.push(`平滑运动从关键帧 A 到关键帧 B，Cocomelon 风格，高质量，一致的风格和视觉连续性`);
-    parts.push(`整个片段中视频运动节奏必须匹配音乐节奏。`);
+      return [];
+    };
+    
+    const parts = [
+      // 使用提供的 videoPrompt 作为基础（描述动态动作）
+      shot.videoPrompt,
+      
+      // 添加首尾帧过渡信息
+      `从关键帧 A 到关键帧 B 生成视频:`,
+      `起始关键帧 A (镜头 ${shot.shotNumber} 开始)`,
+      keyframeB.nextShotNumber 
+        ? `平滑过渡到关键帧 B (镜头 ${keyframeB.nextShotNumber} 开始)`
+        : `平滑过渡到关键帧 B (镜头 ${shot.shotNumber} 结束)`,
+      
+      // 时间和同步
+      `时长: ${duration} 秒`,
+      `时间范围: ${shot.timeRange} (音乐时间: ${shot.startTime.toFixed(2)}秒 - ${shot.endTime.toFixed(2)}秒)`,
+      `重要提示: 此视频片段对应音乐时间 ${shot.startTime.toFixed(2)}秒 - ${shot.endTime.toFixed(2)}秒`,
+      `视频动作、运动和节奏必须与音乐节拍和节奏同步`,
+      
+      // 节拍同步描述
+      ...buildBeatSyncDescription(),
+      
+      // 同步点
+      shot.syncPoint && `同步点: ${shot.syncPoint}`,
+      
+      // 音乐节奏信息
+      rhythm?.bpm && `音乐 BPM: ${rhythm.bpm} - 视频运动节奏应匹配此节拍率`,
+      rhythm?.bpm && `节拍间隔: ${(60 / rhythm.bpm).toFixed(2)} 秒 - 运动应遵循此节奏`,
+      rhythm?.character && `音乐节奏特征: ${rhythm.character} - 视频运动应反映此节奏风格`,
+      
+      // Cocomelon 风格
+      `视觉风格: Cocomelon 动画风格 - 明亮鲜艳的色彩，简单可爱的角色设计，流畅的 3D 动画，适合儿童的视觉风格，圆润友好的角色，清晰的线条，简单的背景，教育性和娱乐性结合，活泼欢快的氛围`,
+      `平滑运动从关键帧 A 到关键帧 B，Cocomelon 风格，高质量，一致的风格和视觉连续性`,
+      `整个片段中视频运动节奏必须匹配音乐节奏`
+    ].filter(Boolean);
 
     return parts.join('，');
   }

@@ -35,86 +35,75 @@ class VideoGeneratorAgent {
 
   // 构建视频提示词
   _buildPrompt(shot, keyframeA, keyframeB, storyboard) {
-    const parts = [
-      `Generate video from keyframe A to keyframe B:`,
-      `Start from keyframe A (shot ${shot.shotNumber} start): ${keyframeA.prompt}`,
-      keyframeB.nextShotNumber 
-        ? `transition smoothly to keyframe B (shot ${keyframeB.nextShotNumber} start): ${keyframeB.prompt}`
-        : `transition smoothly to keyframe B (shot ${shot.shotNumber} end): ${keyframeB.prompt}`
-    ];
-
-    const fields = [
-      ['composition', shot.composition],
-      ['framing', shot.framing],
-      ['lighting', shot.lighting],
-      ['camera movement', shot.movement !== '静止' ? shot.movement : null],
-      ['action', shot.action],
-      ['transition', shot.transition?.type ? `${shot.transition.type}${shot.transition.duration ? ` (${shot.transition.duration}s)` : ''}` : null]
-    ];
-
-    fields.forEach(([key, value]) => {
-      if (value) parts.push(`${key}: ${value}`);
-    });
-
     const duration = shot.endTime - shot.startTime;
-    parts.push(`duration: ${duration} seconds`);
-    parts.push(`time range: ${shot.timeRange} (music time: ${shot.startTime.toFixed(2)}s - ${shot.endTime.toFixed(2)}s)`);
-
-    // 获取这个镜头时间段内的所有卡点
     const beatPointsInRange = this._getBeatPointsInRange(shot, storyboard?.musicAnalysis);
-    
-    // 强调音乐律动同步
-    parts.push(`CRITICAL: This video segment corresponds to music time ${shot.startTime.toFixed(2)}s - ${shot.endTime.toFixed(2)}s.`);
-    parts.push(`The video motion, action, and rhythm MUST sync with the music beat and rhythm.`);
-    
-    if (beatPointsInRange.length > 0) {
-      // 计算相对时间（相对于镜头开始时间）
-      const relativeBeatTimes = beatPointsInRange.map(beat => {
-        const relativeTime = beat - shot.startTime;
-        return { absolute: beat, relative: relativeTime };
-      });
-      
-      const beatTimesAbsolute = relativeBeatTimes.map(b => `${b.absolute.toFixed(2)}s`).join(', ');
-      const beatTimesRelative = relativeBeatTimes.map(b => `${b.relative.toFixed(2)}s`).join(', ');
-      
-      parts.push(`Beat points in this segment (at music time): ${beatTimesAbsolute}`);
-      parts.push(`Beat points relative to segment start: ${beatTimesRelative}`);
-      parts.push(`At these beat points (${beatTimesRelative}), the action or camera movement MUST emphasize or change to match the music rhythm.`);
-      parts.push(`The motion should accelerate, change direction, or create visual emphasis at these exact moments to sync with the music beats.`);
-      parts.push(`Visual rhythm must match musical rhythm - action peaks should align with beat points.`);
-    } else if (shot.beatPoint != null) {
-      const relativeBeatTime = shot.beatPoint - shot.startTime;
-      parts.push(`Beat point at ${relativeBeatTime.toFixed(2)}s into this segment (music time: ${shot.beatPoint.toFixed(2)}s)`);
-      parts.push(`At this beat point (${relativeBeatTime.toFixed(2)}s), emphasize the action or change camera movement to sync with the music beat.`);
-    }
-    
-    if (shot.syncPoint) {
-      parts.push(`Sync point: ${shot.syncPoint}`);
-    }
-
-    // 添加音乐节奏信息
     const rhythm = storyboard?.musicAnalysis?.rhythm;
-    if (rhythm) {
-      if (rhythm.bpm) {
-        parts.push(`Music BPM: ${rhythm.bpm} - video motion tempo should match this beat rate`);
-        const beatInterval = 60 / rhythm.bpm;
-        parts.push(`Beat interval: ${beatInterval.toFixed(2)} seconds - motion should follow this rhythm`);
-      }
-      if (rhythm.character) {
-        parts.push(`Music rhythm character: ${rhythm.character} - video motion should reflect this rhythm style`);
-      }
-    }
-
     const concept = storyboard?.visualConcept?.visualConcept;
-    if (concept?.style?.name) parts.push(`style: ${concept.style.name}`);
-    if (concept?.colorPalette?.primary) parts.push(`color palette: ${concept.colorPalette.primary.join(', ')}`);
-    if (shot.prompt) parts.push(`shot prompt: ${shot.prompt}`);
+    
+    // 构建节拍同步描述
+    const buildBeatSyncDescription = () => {
+      if (beatPointsInRange.length > 0) {
+        const relativeBeatTimes = beatPointsInRange.map(beat => ({
+          absolute: beat,
+          relative: beat - shot.startTime
+        }));
+        const beatTimesAbsolute = relativeBeatTimes.map(b => `${b.absolute.toFixed(2)}s`).join(', ');
+        const beatTimesRelative = relativeBeatTimes.map(b => `${b.relative.toFixed(2)}s`).join(', ');
+        return [
+          `Beat points in this segment (at music time): ${beatTimesAbsolute}`,
+          `Beat points relative to segment start: ${beatTimesRelative}`,
+          `At these beat points (${beatTimesRelative}), the action or camera movement MUST emphasize or change to match the music rhythm`,
+          `The motion should accelerate, change direction, or create visual emphasis at these exact moments to sync with the music beats`,
+          `Visual rhythm must match musical rhythm - action peaks should align with beat points`
+        ];
+      } else if (shot.beatPoint != null) {
+        const relativeBeatTime = shot.beatPoint - shot.startTime;
+        return [
+          `Beat point at ${relativeBeatTime.toFixed(2)}s into this segment (music time: ${shot.beatPoint.toFixed(2)}s)`,
+          `At this beat point (${relativeBeatTime.toFixed(2)}s), emphasize the action or change camera movement to sync with the music beat`
+        ];
+      }
+      return [];
+    };
 
-    // Cocomelon 风格要求
-    parts.push(`Visual style: Cocomelon animation style - bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere`);
-    parts.push(VIDEO_STYLE);
-    parts.push(`The video motion rhythm must match the music rhythm throughout the entire segment.`);
-
+    // 必须使用 videoPrompt，如果没有则抛出错误
+    if (!shot.videoPrompt) {
+      throw new Error(`镜头 ${shot.shotNumber} 缺少必需的 videoPrompt 字段`);
+    }
+    
+    const parts = [
+      // 使用提供的 videoPrompt 作为基础（描述动态动作）
+      shot.videoPrompt,
+      
+      // 添加首尾帧过渡信息
+      `Generate video from keyframe A to keyframe B:`,
+      `Start from keyframe A (shot ${shot.shotNumber} start)`,
+      keyframeB.nextShotNumber 
+        ? `transition smoothly to keyframe B (shot ${keyframeB.nextShotNumber} start)`
+        : `transition smoothly to keyframe B (shot ${shot.shotNumber} end)`,
+      
+      // 时间和同步
+      `duration: ${duration} seconds`,
+      `time range: ${shot.timeRange} (music time: ${shot.startTime.toFixed(2)}s - ${shot.endTime.toFixed(2)}s)`,
+      `CRITICAL: This video segment corresponds to music time ${shot.startTime.toFixed(2)}s - ${shot.endTime.toFixed(2)}s`,
+      `The video motion, action, and rhythm MUST sync with the music beat and rhythm`,
+      
+      // 节拍同步描述
+      ...buildBeatSyncDescription(),
+      
+      // 同步点
+      shot.syncPoint && `Sync point: ${shot.syncPoint}`,
+      
+      // 音乐节奏信息
+      rhythm?.bpm && `Music BPM: ${rhythm.bpm} - video motion tempo should match this beat rate`,
+      rhythm?.bpm && `Beat interval: ${(60 / rhythm.bpm).toFixed(2)} seconds - motion should follow this rhythm`,
+      rhythm?.character && `Music rhythm character: ${rhythm.character} - video motion should reflect this rhythm style`,
+      
+      // Cocomelon 风格
+      VIDEO_STYLE,
+      `The video motion rhythm must match the music rhythm throughout the entire segment`
+    ].filter(Boolean);
+    
     return parts.join(', ');
   }
 

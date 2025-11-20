@@ -65,20 +65,18 @@ class VideoGeneratorImageToVideoAgent {
       return [];
     };
 
-    // 构建所有提示词部分
+    // 必须使用 videoPrompt，如果没有则抛出错误
+    if (!shot.videoPrompt) {
+      throw new Error(`镜头 ${shot.shotNumber} 缺少必需的 videoPrompt 字段`);
+    }
+    
     const parts = [
-      // 基础描述
-      `Generate video from keyframe image`,
-      `Starting from keyframe (shot ${shot.shotNumber} start): ${keyframeA.prompt}`,
-      `Animate the scene smoothly based on the keyframe image`,
+      // 使用提供的 videoPrompt 作为基础（描述动态动作）
+      shot.videoPrompt,
       
-      // 镜头字段
-      shot.composition && `composition: ${shot.composition}`,
-      shot.framing && `framing: ${shot.framing}`,
-      shot.lighting && `lighting: ${shot.lighting}`,
-      shot.movement !== '静止' && `camera movement: ${shot.movement}`,
-      shot.action && `action: ${shot.action}`,
-      shot.transition?.type && `transition: ${shot.transition.type}${shot.transition.duration ? ` (${shot.transition.duration}s)` : ''}`,
+      // 添加必要的补充信息
+      `Generate video from keyframe image`,
+      `Animate the scene smoothly based on the keyframe image`,
       
       // 时间和同步
       `duration: ${duration} seconds`,
@@ -97,18 +95,12 @@ class VideoGeneratorImageToVideoAgent {
       rhythm?.bpm && `Beat interval: ${(60 / rhythm.bpm).toFixed(2)} seconds - motion should follow this rhythm`,
       rhythm?.character && `Music rhythm character: ${rhythm.character} - video motion should reflect this rhythm style`,
       
-      // 视觉概念
-      concept?.style?.name && `style: ${concept.style.name}`,
-      concept?.colorPalette?.primary && `color palette: ${concept.colorPalette.primary.join(', ')}`,
-      shot.prompt && `shot prompt: ${shot.prompt}`,
-      
       // Cocomelon 风格
-      `Visual style: Cocomelon animation style - bright vibrant colors, simple cute character design, smooth 3D animation, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds, educational and entertaining, playful and cheerful atmosphere`,
       VIDEO_STYLE,
       `The video motion rhythm must match the music rhythm throughout the entire segment`,
       `Animate the keyframe image smoothly, bringing the scene to life with natural motion that matches the music rhythm`
-    ].filter(Boolean); // 过滤掉所有 falsy 值（null, undefined, false, ''）
-
+    ].filter(Boolean);
+    
     return parts.join(', ');
   }
 

@@ -73,7 +73,8 @@ Based on music analysis, generate:
    - Sync point with music (must explicitly mention beat point positions and how the shot syncs with them)
    - beatPoint: The time (in seconds) of the most prominent beat point within this shot's time range (if any)
    - Transition type (fade in/fade out/cut/wipe, etc.)
-   - Detailed prompt for image/video generation (should mention beat synchronization)
+   - keyframePrompt: Detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style.
+   - videoPrompt: Detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen. Must mention beat synchronization and be in Cocomelon animation style.
 6. **Key Requirements**:
    - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
    - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
@@ -151,7 +152,8 @@ Please return in JSON format, ensuring correct format:
           "type": "transition type (fade in/fade out/cut/wipe, etc.)",
           "duration": transition duration (seconds, number)
         },
-        "prompt": "detailed prompt for image/video generation"
+        "keyframePrompt": "detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style with bright vibrant colors, simple cute character design, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds",
+        "videoPrompt": "detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen, including beat synchronization. Must be in Cocomelon animation style with smooth 3D animation, educational and entertaining, playful and cheerful atmosphere"
       }
     ],
     "totalDuration": ${videoDuration.toFixed(2)} (number, must be exactly equal to audio duration),
@@ -193,7 +195,8 @@ Please return in JSON format, ensuring correct format:
       syncPoint: originalShot.syncPoint,
       beatPoint: originalShot.beatPoint,
       transition: originalShot.transition,
-      prompt: originalShot.prompt
+      keyframePrompt: originalShot.keyframePrompt,
+      videoPrompt: originalShot.videoPrompt
     };
   }
 
@@ -248,7 +251,8 @@ ${JSON.stringify(visualConcept, null, 2)}
    - Sync point with music (must explicitly mention beat point positions and how the shot syncs with them)
    - beatPoint: The time (in seconds) of the most prominent beat point within this shot's time range (if any)
    - Transition type (fade in/fade out/cut/wipe, etc.)
-   - Detailed prompt for image/video generation (should mention beat synchronization)
+   - keyframePrompt: Detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style.
+   - videoPrompt: Detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen. Must mention beat synchronization and be in Cocomelon animation style.
 6. **Key Requirements**:
    - Each shot must be strictly fixed at ${SHOT_DURATION} seconds (except the last shot)
    - The last shot's end time must be exactly ${videoDuration.toFixed(2)} seconds
@@ -275,7 +279,8 @@ Please return ONLY the storyboard JSON object in the following format:
           "type": "transition type (fade in/fade out/cut/wipe, etc.)",
           "duration": transition duration (seconds, number)
         },
-        "prompt": "detailed prompt for image/video generation"
+        "keyframePrompt": "detailed prompt for KEYFRAME generation - describes the INITIAL STATE of the scene (static image, starting moment before action begins, what the scene looks like at the beginning). Should describe the scene composition, characters' positions, expressions, and the static setup. Must be in Cocomelon animation style with bright vibrant colors, simple cute character design, child-friendly visual style, rounded friendly characters, clear lines, simple backgrounds",
+        "videoPrompt": "detailed prompt for VIDEO generation - describes what is HAPPENING in the scene (dynamic actions, movements, what characters are doing, how the scene animates). Should describe the action, motion, and animation that will happen, including beat synchronization. Must be in Cocomelon animation style with smooth 3D animation, educational and entertaining, playful and cheerful atmosphere"
       }
     ],
     "totalDuration": ${videoDuration.toFixed(2)} (number, must be exactly equal to audio duration),
