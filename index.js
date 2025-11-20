@@ -159,9 +159,12 @@ async function main() {
         break;
     }
     const agent1ResultPath =  path.join(config.paths.output, `agent1_storyboard.json`);
+    // 将storyboardData存入 agent1ResultPath
+    fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
+
 
     { // 使用的数据从缓存导入，便于各agent 分离
-      storyboardData = JSON.parse(fs.readFileSync(agent1ResultPath, 'utf-8'));
+       storyboardData = JSON.parse(fs.readFileSync(agent1ResultPath, 'utf-8'));
     }
         
     // 构建 storyboard 对象以兼容后续流程

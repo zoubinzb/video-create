@@ -140,12 +140,17 @@ class KeyframeGeneratorAgent {
     // 在提供的提示词基础上添加必要的补充信息
     const parts = [
       shot.keyframePrompt,
-      'IMPORTANT: You must use the exact cartoon character from the reference image provided.',
-      'The character\'s appearance, design, colors, and style must be identical to the reference image.',
-      'Do not create a new character or modify the character design.',
       'This is a STATIC keyframe image showing the INITIAL STATE before any action begins',
       'cinematic, high quality, detailed, still frame, start keyframe, initial moment'
     ];
+    
+    // 如果有参考图片，使用风格参考而不是强制使用相同角色
+    const hasReference = fs.existsSync(this.referenceImagePath);
+    if (hasReference) {
+      parts.push('Use the reference image as a visual style guide for character design, color palette, and animation style.');
+      parts.push('Match the visual style, color scheme, and artistic approach of the reference image.');
+      parts.push('Maintain consistency with the reference image\'s artistic style while following the scene description.');
+    }
     
     if (style) parts.push(`${style} style`);
     if (colors) parts.push(`${colors} color palette`);

@@ -11,7 +11,7 @@ class GeminiClient {
     this.ai = new GoogleGenAI({
       apiKey: config.gemini.apiKey,
     });
-    this.defaultModel = 'gemini-3-pro-preview';
+    this.defaultModel = 'gemini-2.5-flash';
   }
 
   /**
@@ -215,12 +215,11 @@ class GeminiClient {
     const referenceImage = options.referenceImage;
     const aspectRatio = options.aspectRatio || '16:9';
     
-    // 构建内容
-    let contents = prompt;
+    // 构建内容 - 使用正确的格式
+    const parts = [{ text: prompt }];
     
     if (referenceImage) {
       const imagePaths = Array.isArray(referenceImage) ? referenceImage : [referenceImage];
-      const imageParts = [];
       
       for (const imgPath of imagePaths) {
         if (fs.existsSync(imgPath)) {
@@ -233,7 +232,7 @@ class GeminiClient {
             '.webp': 'image/webp'
           };
           
-          imageParts.push({
+          parts.push({
             inlineData: {
               data: imageData.toString('base64'),
               mimeType: mimeTypes[ext] || 'image/jpeg'
@@ -241,11 +240,13 @@ class GeminiClient {
           });
         }
       }
-      
-      if (imageParts.length > 0) {
-        contents = [...imageParts, { text: prompt }];
-      }
     }
+    
+    // 使用正确的 contents 格式（包含 role 和 parts）
+    const contents = {
+      role: 'user',
+      parts: parts
+    };
     
     // 构建生成配置
     const generationConfig = {
@@ -258,9 +259,21 @@ class GeminiClient {
       generationConfig
     });
     
+    // 检查响应中是否有错误
+    if (response.candidates?.[0]?.finishReason) {
+      const finishReason = response.candidates[0].finishReason;
+      if (finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+        console.error('⚠️  API 响应完成原因:', finishReason);
+        if (response.candidates[0].safetyRatings) {
+          console.error('⚠️  安全评级:', JSON.stringify(response.candidates[0].safetyRatings, null, 2));
+        }
+      }
+    }
+    
     // 提取图像数据
     let imageData = null;
     
+    // 方法1: 从 parts 中查找 inlineData
     if (response.candidates?.[0]?.content?.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData?.data) {
@@ -270,12 +283,68 @@ class GeminiClient {
       }
     }
     
+    // 方法2: 从 text 中提取 base64
     if (!imageData && response.text) {
       const base64Match = response.text.match(/data:image\/[^;]+;base64,([^\s"']+)/);
       if (base64Match) imageData = base64Match[1];
     }
     
+    // 方法3: 尝试直接从 response 中查找其他可能的字段
+    if (!imageData && response.candidates?.[0]) {
+      const candidate = response.candidates[0];
+      // 检查是否有其他格式的数据
+      if (candidate.content?.parts) {
+        for (const part of candidate.content.parts) {
+          // 尝试不同的字段名
+          if (part.imageData) imageData = part.imageData;
+          if (part.data) imageData = part.data;
+          if (part.base64) imageData = part.base64;
+        }
+      }
+    }
+    
     if (!imageData) {
+      // 检查是否是 API 返回了文本拒绝消息
+      if (response.text && (
+        response.text.toLowerCase().includes('sorry') || 
+        response.text.toLowerCase().includes('cannot') ||
+        response.text.toLowerCase().includes('unable') ||
+        response.text.toLowerCase().includes('refuse')
+      )) {
+        console.error('❌ API 拒绝了图像生成请求');
+        console.error('📝 API 响应:', response.text.substring(0, 500));
+        throw new Error(`API 拒绝生成图像: ${response.text.substring(0, 200)}`);
+      }
+      
+      // 记录详细的响应信息以便调试
+      console.error('❌ 未找到图像数据，响应结构:');
+      console.error('  - response.candidates 存在:', !!response.candidates);
+      console.error('  - candidates 数量:', response.candidates?.length || 0);
+      if (response.candidates?.[0]) {
+        console.error('  - candidate[0].content 存在:', !!response.candidates[0].content);
+        console.error('  - candidate[0].content.parts 存在:', !!response.candidates[0].content?.parts);
+        console.error('  - parts 数量:', response.candidates[0].content?.parts?.length || 0);
+        console.error('  - candidate[0].finishReason:', response.candidates[0].finishReason);
+        if (response.candidates[0].content?.parts) {
+          response.candidates[0].content.parts.forEach((part, i) => {
+            console.error(`  - part[${i}] 键:`, Object.keys(part));
+          });
+        }
+      }
+      console.error('  - response.text 存在:', !!response.text);
+      if (response.text) {
+        console.error('  - response.text 前200字符:', response.text.substring(0, 200));
+      }
+      
+      // 保存完整响应到文件以便调试
+      const debugPath = path.join(process.cwd(), 'output', `image_generation_error_${Date.now()}.json`);
+      try {
+        fs.writeFileSync(debugPath, JSON.stringify(response, null, 2), 'utf-8');
+        console.error(`💾 完整响应已保存到: ${debugPath}`);
+      } catch (e) {
+        console.error('⚠️  无法保存调试文件:', e.message);
+      }
+      
       throw new Error('未找到图像数据');
     }
     
