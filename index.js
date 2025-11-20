@@ -12,6 +12,7 @@ import musicStoryboardGeneratorDoubao from './agents/music-storyboard-generator-
 import keyframeGeneratorJimeng from './agents/keyframe-generator-jimeng.js';
 import videoGenerator from './agents/video-generator.js';
 import videoGeneratorAliyun from './agents/video-generator-aliyun.js';
+import videoGeneratorImageToVideo from './agents/video-generator-image-to-video.js';
 import videoComposer from './agents/video-composer.js';
 
 
@@ -83,6 +84,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 
+// 音乐分析模式常量定义
+const MUSIC_ANALYSIS_MODE_AI = {
+  GEMINI: 'gemini',
+  DOUBAO: 'doubao',
+};
+const MUSIC_ANALYSIS_MODE_DEFAULT = MUSIC_ANALYSIS_MODE_AI.GEMINI;
+
+
+// 关键帧生成模式常量定义
+const KEYFRAME_GENERATION_MODE_AI = {
+  GEMINI: 'gemini',
+  JIMENG: 'jimeng',
+};
+const KEYFRAME_GENERATION_MODE_DEFAULT = KEYFRAME_GENERATION_MODE_AI.GEMINI;
+
+// 视频生成模式常量定义
+const VIDEO_GENERATION_MODE_AI = {
+  GEMINI_FIRST_LAST: 'gemini_first_last', // Gemini Veo 首尾帧率视频模式
+  GEMINI_IMAGE_TO_VIDEO: 'gemini_image_to_video', // Gemini Veo 图生视频模式
+  ALIYUN: 'aliyun', // 阿里万象首尾帧率视频模式
+};
+const VIDEO_GENERATION_MODE_DEFAULT = VIDEO_GENERATION_MODE_AI.GEMINI_IMAGE_TO_VIDEO;
 
 /**
  * 主工作流
@@ -125,19 +148,16 @@ async function main() {
     console.log('📋 阶段一：音乐分析与分镜生成\n');
     // Agent 1: 音乐分析与分镜生成器（合并了音乐分析、视觉概念和分镜脚本）
     let storyboardData;
-    const agent1ResultPath =  path.join(config.paths.output, `agent1_storyboard.json`);
-    { // 使用AI 分析
-      storyboardData = await musicStoryboardGenerator.generate(audioPath, lyricsText);
-      fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
-      console.log(`Agent1 分析完成，结果也已经保存`)
+
+    switch (MUSIC_ANALYSIS_MODE_DEFAULT) {
+      case MUSIC_ANALYSIS_MODE_AI.GEMINI:
+        storyboardData = await musicStoryboardGenerator.generate(audioPath, lyricsText);
+        break;
+      case MUSIC_ANALYSIS_MODE_AI.JIMENG:
+        storyboardData = await musicStoryboardGeneratorDoubao.generate(audioPath, lyricsText);
+        break;
     }
-
-    // { // 使用豆包分析
-    //   storyboardData = await musicStoryboardGeneratorDoubao.generate(audioPath, lyricsText);
-    //   fs.writeFileSync(agent1ResultPath, JSON.stringify(storyboardData, null, 2), 'utf-8');
-    //   console.log(`Agent1 分析完成，结果也已经保存`)
-
-    // }
+    const agent1ResultPath =  path.join(config.paths.output, `agent1_storyboard.json`);
 
     { // 使用的数据从缓存导入，便于各agent 分离
       storyboardData = JSON.parse(fs.readFileSync(agent1ResultPath, 'utf-8'));
@@ -156,34 +176,36 @@ async function main() {
     
     // Agent 4: 关键帧生成器（生成 AB 关键帧）
     let keyframeData;
-    
-    // 关键帧方案一：直接生成每个关键帧
-    // { 
-    //   keyframeData = await keyframeGenerator.generate(storyboard);
-    // }
 
-    // 关键帧方案二：先生成 storyboard 大图，再提取关键帧
-    // { 
-    //   keyframeData = await keyframeGeneratorV2.generate(storyboard);
-    // }
-
-    // 关键帧方案三：使用即梦生成关键帧（一次调用生成所有关键帧）
-    { 
-      keyframeData = await keyframeGeneratorJimeng.generate(storyboard);
+    switch (KEYFRAME_GENERATION_MODE_DEFAULT) {
+      case KEYFRAME_GENERATION_MODE_AI.GEMINI:
+        keyframeData = await keyframeGenerator.generate(storyboard);
+        break;
+      case KEYFRAME_GENERATION_MODE_AI.DOUBAO:
+        keyframeData = await keyframeGeneratorJimeng.generate(storyboard);
+        break;
     }
+  
+
 
     // 方案四：从已有目录加载关键帧
     keyframeData = loadKeyframesFromDirectory(storyboard);
     console.log(`   关键帧: ${keyframeData.keyframes?.length || 0} 个镜头，共 ${(keyframeData.keyframes?.length || 0) * 2} 个关键帧（从目录加载）\n`);
 
-    
-    // // Agent 5: 视频生成器（基于 AB 关键帧生成视频）
-    const materials = await videoGenerator.generate(keyframeData);
-    console.log(`   视频素材: ${materials.materials?.length || 0} 个\n`);
+  
 
-    // Agent 6: 视频生成器（基于阿里万象 AB 关键帧生成视频）
-    // const materials = await videoGeneratorAliyun.generate(keyframeData);
-    // console.log(`   视频素材: ${materials.materials?.length || 0} 个\n`);
+    switch (VIDEO_GENERATION_MODE_DEFAULT) {
+      case VIDEO_GENERATION_MODE_AI.GEMINI_FIRST_LAST:
+        materials = await videoGenerator.generate(keyframeData);
+        break;
+      case VIDEO_GENERATION_MODE_AI.GEMINI_IMAGE_TO_VIDEO:
+        materials = await videoGeneratorImageToVideo.generate(keyframeData);
+        break;
+      case VIDEO_GENERATION_MODE_AI.ALIYUN:
+        materials = await videoGeneratorAliyun.generate(keyframeData);
+        break;
+    }
+    console.log(`   视频素材: ${materials.materials?.length || 0} 个\n`);
 
     
     // 阶段三：视频合成与输出
